@@ -1,22 +1,22 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { Routes, Route } from 'react-router-dom';
 import Home from './Home';
 import Info from './Info';
 import Help from './Help';
-import Forms from './Forms';
-import Management from './Management';
+import StudentsList from './StudentsList';
+import StudentsForm from './StudentsForm';
 
 function App() {
   return (
-    <Router>
+    <>
       <Routes>
         <Route path="/" element={<Home />} />
-        <Route path="/info" element={<Info />} />
-        <Route path="/help" element={<Help />} />
-        <Route path="/forms" element={<Forms />} />
-        <Route path="/management" element={<Management />} />
+        <Route path="/Info" element={<Info />} />
+        <Route path="/Help" element={<Help />} />
+        <Route path="/students" element={<StudentsList />} />
+        <Route path="/students/add" element={<StudentsForm />} />
       </Routes>
-    </Router>
+    </>
   );
 }
 
