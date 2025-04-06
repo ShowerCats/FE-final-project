@@ -5,10 +5,12 @@ import Info from './Info';
 import Help from './Help';
 import StudentsList from './StudentsList';
 import StudentsForm from './StudentsForm';
+import Header from './Header';
 
 function App() {
   return (
     <>
+    <Header />
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/Info" element={<Info />} />
