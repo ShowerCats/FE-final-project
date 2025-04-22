@@ -20,7 +20,7 @@ export default function Header() {
         setOpen(!open);
     };
     return (
-        <AppBar position="static">
+        <AppBar position="fixed" style={{backgroundColor: "greenyellow"}} >
             <Toolbar>
                 <IconButton
                     size="large"
@@ -30,6 +30,12 @@ export default function Header() {
                 >
                     <MenuIcon />
                 </IconButton>
+                <img
+                    src='https://yedion.ono.ac.il/info/images/CollegeLogo.png'
+                    onClick={() => handleNavigation("/")}
+                    style={{ cursor: 'pointer' }}
+                    alt="College Logo - Go to Home"
+                />
                 <Drawer open={open} onClose={toggleDrawer}>
                     <div style={{ width: "250px" }}>
                         <List>
@@ -42,8 +48,14 @@ export default function Header() {
                             <ListItemButton onClick={() => handleNavigation("/Students/add")}>
                                 <ListItemText primary="Register" />
                             </ListItemButton>
+                            <ListItemButton onClick={() => handleNavigation("/Notifications")}>
+                                <ListItemText primary="Notifications" />
+                            </ListItemButton>
                             <ListItemButton onClick={() => handleNavigation("/Help")}>
                                 <ListItemText primary="Help" />
+                            </ListItemButton>
+                            <ListItemButton onClick={() => handleNavigation("/About")}>
+                                <ListItemText primary="About" />
                             </ListItemButton>
                         </List>
                     </div>
