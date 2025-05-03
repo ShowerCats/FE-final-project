@@ -8,6 +8,7 @@ import ListItemText from "@mui/material/ListItemText";
 import AppBar from "@mui/material/AppBar";
 import Toolbar from "@mui/material/Toolbar";
 import { useNavigate } from "react-router-dom";
+import Box from '@mui/material/Box';
 
 export default function Header() {
     const navigate = useNavigate();
@@ -16,9 +17,13 @@ export default function Header() {
         setOpen(false);
     };
     const [open, setOpen] = useState(false);
-    const toggleDrawer = () => {
+    const toggleDrawer = (event) => {
+        if (event.type === 'keydown' && (event.key === 'Tab' || event.key === 'Shift')) {
+            return;
+        }
         setOpen(!open);
     };
+
     return (
         <AppBar position="fixed" style={{backgroundColor: "greenyellow"}} >
             <Toolbar>
@@ -27,17 +32,23 @@ export default function Header() {
                     edge="start"
                     color="inherit"
                     onClick={toggleDrawer}
+                    sx={{ mr: 2, color: '#333' }}
                 >
                     <MenuIcon />
                 </IconButton>
                 <img
                     src='https://yedion.ono.ac.il/info/images/CollegeLogo.png'
                     onClick={() => handleNavigation("/")}
-                    style={{ cursor: 'pointer' }}
+                    style={{ cursor: 'pointer', height: '40px' }}
                     alt="College Logo - Go to Home"
                 />
-                <Drawer open={open} onClose={toggleDrawer}>
-                    <div style={{ width: "250px" }}>
+                <Drawer anchor="left" open={open} onClose={toggleDrawer}>
+                    <Box
+                        sx={{ width: 250 }}
+                        role="presentation"
+                        onClick={toggleDrawer}
+                        onKeyDown={toggleDrawer}
+                    >
                         <List>
                             <ListItemButton onClick={() => handleNavigation("/")}>
                                 <ListItemText primary="Home" />
@@ -45,11 +56,19 @@ export default function Header() {
                             <ListItemButton onClick={() => handleNavigation("/students")}>
                                 <ListItemText primary="Students" />
                             </ListItemButton>
-                            <ListItemButton onClick={() => handleNavigation("/Students/add")}>
-                                <ListItemText primary="Register" />
+                            <ListItemButton onClick={() => handleNavigation("/students/add")}>
+                                <ListItemText primary="Register Student" />
                             </ListItemButton>
+                            {/* Add Courses Link Here */}
+                            <ListItemButton onClick={() => handleNavigation("/courses")}>
+                                <ListItemText primary="Courses" />
+                            </ListItemButton>
+                            {/* End Add Courses Link */}
                             <ListItemButton onClick={() => handleNavigation("/Notifications")}>
                                 <ListItemText primary="Notifications" />
+                            </ListItemButton>
+                            <ListItemButton onClick={() => handleNavigation("/Grades")}>
+                                <ListItemText primary="Grades" />
                             </ListItemButton>
                             <ListItemButton onClick={() => handleNavigation("/Help")}>
                                 <ListItemText primary="Help" />
@@ -58,7 +77,7 @@ export default function Header() {
                                 <ListItemText primary="About" />
                             </ListItemButton>
                         </List>
-                    </div>
+                    </Box>
                 </Drawer>
             </Toolbar>
         </AppBar>

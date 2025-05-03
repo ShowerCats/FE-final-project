@@ -1,4 +1,3 @@
-// c:\Users\Ori\Downloads\FE Project\FE-final-project\FE\src\App.jsx
 import React from 'react';
 import { Routes, Route } from 'react-router-dom';
 import Home from './Home';
@@ -7,12 +6,15 @@ import Help from './Help';
 import StudentsList from './StudentsList';
 import StudentsForm from './StudentsForm';
 import Header from './Header';
-import Box from '@mui/material/Box'; // Import Box
+import Box from '@mui/material/Box';
 import About from './About';
 import NotificationsList from './NotificationsList';
+import Grades from './Grades';
+import Courses from './Courses'; // Import Courses component
+import Typography from '@mui/material/Typography';
 
 function App() {
-  // Initial data loading logic (Requirement 7) goes here
+
   React.useEffect(() => {
     const storedStudents = localStorage.getItem('students');
     if (!storedStudents || JSON.parse(storedStudents).length === 0) {
@@ -31,15 +33,25 @@ function App() {
       ];
       localStorage.setItem('students', JSON.stringify(initialStudents));
     }
-    // Add similar checks for other entities (e.g., 'courses') if needed
-  }, []); // Runs only once on component mount
+
+    const storedNotifications = localStorage.getItem('notifications');
+    if (!storedNotifications || JSON.parse(storedNotifications).length === 0) {
+        console.log("Populating initial notification data...");
+        const initialNotifications = [
+            { id: 1, sender: 'Prof. Smith', message: 'Your grade for the Midterm Exam has been updated.', timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(), type: 'grade_update', read: false },
+            { id: 2, sender: 'Admin Office', message: 'Reminder: Course registration deadline is approaching.', timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(), type: 'announcement', read: false },
+            { id: 3, sender: 'Prof. Davis', message: 'Assignment 3 feedback is available. Check your grades.', timestamp: new Date(Date.now() - 1000 * 60 * 60 * 48).toISOString(), type: 'grade_update', read: true },
+            { id: 4, sender: 'Teaching Assistant', message: 'Office hours cancelled for this Wednesday.', timestamp: new Date(Date.now() - 1000 * 60 * 30).toISOString(), type: 'info', read: false },
+        ];
+        localStorage.setItem('notifications', JSON.stringify(initialNotifications));
+    }
+
+  }, []);
 
   return (
     <>
-    
       <Header />
-      {/* Add Box with padding-top to push content below AppBar */}
-      <Box component="main" sx={{ pt: { xs: 7, sm: 8 }, p: 2 }}> {/* Adjust pt based on AppBar height, add padding */}
+      <Box component="main" sx={{ pt: { xs: 7, sm: 8 }, p: 2 }}>
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/Info" element={<Info />} />
@@ -47,8 +59,10 @@ function App() {
           <Route path="/Notifications" element={<NotificationsList />} />
           <Route path="/students" element={<StudentsList />} />
           <Route path="/students/add" element={<StudentsForm />} />
+          <Route path="/courses" element={<Courses />} /> {/* Add Courses Route */}
+          <Route path="/grades" element={<Grades />} />
           <Route path="/about" element={<About />} />
-          {/* Add routes for any other components */}
+          <Route path="*" element={<Typography>Page Not Found</Typography>} />
         </Routes>
       </Box>
     </>
