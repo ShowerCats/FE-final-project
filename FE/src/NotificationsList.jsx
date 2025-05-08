@@ -1,3 +1,4 @@
+// c:\Users\Ori\Downloads\FE Project\FE-final-project\FE\src\NotificationsList.jsx
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import Box from '@mui/material/Box';
@@ -6,76 +7,57 @@ import Paper from '@mui/material/Paper';
 import Button from '@mui/material/Button';
 import Stack from '@mui/material/Stack';
 import Divider from '@mui/material/Divider';
-import Dialog from '@mui/material/Dialog'; // Import Dialog
-import DialogActions from '@mui/material/DialogActions'; // Import DialogActions
-import DialogContent from '@mui/material/DialogContent'; // Import DialogContent
-import DialogContentText from '@mui/material/DialogContentText'; // Optional: for text inside content
-import DialogTitle from '@mui/material/DialogTitle'; // Import DialogTitle
-import TextField from '@mui/material/TextField'; // Import TextField for reply input
+import Dialog from '@mui/material/Dialog';
+import DialogActions from '@mui/material/DialogActions';
+import DialogContent from '@mui/material/DialogContent';
+import DialogContentText from '@mui/material/DialogContentText';
+import DialogTitle from '@mui/material/DialogTitle';
+import TextField from '@mui/material/TextField';
 
-// --- Mock Data (Keep as is) ---
-const initialNotifications = [
-  {
-    id: 1,
-    sender: 'Prof. Smith',
-    message: 'Your grade for the Midterm Exam has been updated.',
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
-    type: 'grade_update',
-    read: false,
-  },
-  {
-    id: 2,
-    sender: 'Admin Office',
-    message: 'Reminder: Course registration deadline is approaching.',
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
-    type: 'announcement',
-    read: false,
-  },
-  {
-    id: 3,
-    sender: 'Prof. Davis',
-    message: 'Assignment 3 feedback is available. Check your grades.',
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 48).toISOString(),
-    type: 'grade_update',
-    read: true,
-  },
-  {
-    id: 4,
-    sender: 'Teaching Assistant',
-    message: 'Office hours cancelled for this Wednesday.',
-    timestamp: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
-    type: 'info',
-    read: false,
-  },
-];
-// --- End Mock Data ---
+// Firestore imports
+import { firestore as db } from './Firebase/config.js';
+import { collection, getDocs, doc, updateDoc, orderBy, query as firestoreQuery } from "firebase/firestore";
 
 export default function NotificationsList() {
   const [notifications, setNotifications] = useState([]);
-  const [isReplyDialogOpen, setIsReplyDialogOpen] = useState(false); // State for dialog visibility
-  const [replyingToNotification, setReplyingToNotification] = useState(null); // State to hold the notification being replied to
-  const [replyMessage, setReplyMessage] = useState(''); // State for the reply message input
+  const [isReplyDialogOpen, setIsReplyDialogOpen] = useState(false);
+  const [replyingToNotification, setReplyingToNotification] = useState(null);
+  const [replyMessage, setReplyMessage] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    const storedNotifications = JSON.parse(localStorage.getItem('notifications'));
-    if (storedNotifications && storedNotifications.length > 0) {
-      setNotifications(storedNotifications);
-    } else {
-      setNotifications(initialNotifications);
-      // localStorage.setItem('notifications', JSON.stringify(initialNotifications));
-    }
+    const fetchNotifications = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const notificationsCollectionRef = collection(db, "notifications");
+        // Optionally, order by timestamp descending
+        const q = firestoreQuery(notificationsCollectionRef, orderBy("timestamp", "desc"));
+        const querySnapshot = await getDocs(q);
+        const notificationsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setNotifications(notificationsData);
+      } catch (err) {
+        console.error("Error fetching notifications from Firestore:", err);
+        setError("Failed to load notifications. Please try again later.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchNotifications();
   }, []);
 
   // --- Reply Dialog Handlers ---
   const handleReplyClick = (notification) => {
-    setReplyingToNotification(notification); // Store the notification object
-    setIsReplyDialogOpen(true); // Open the dialog
-    setReplyMessage(''); // Clear previous reply message
+    setReplyingToNotification(notification);
+    setIsReplyDialogOpen(true);
+    setReplyMessage('');
   };
 
   const handleCloseReplyDialog = () => {
-    setIsReplyDialogOpen(false); // Close the dialog
-    setReplyingToNotification(null); // Clear the notification being replied to
+    setIsReplyDialogOpen(false);
+    setReplyingToNotification(null);
   };
 
   const handleSendReply = () => {
@@ -83,92 +65,108 @@ export default function NotificationsList() {
         alert("Reply message cannot be empty.");
         return;
     }
-    // --- Placeholder for actual send logic ---
-    // In a real app, you would:
-    // 1. Get the current user's ID/name.
-    // 2. Send the replyMessage to the backend API, associating it with:
-    //    - The original notification ID (replyingToNotification.id)
-    //    - The original sender (replyingToNotification.sender) as the recipient
-    //    - The current user as the sender of the reply
     console.log(`Sending reply to: ${replyingToNotification?.sender}`);
     console.log(`Original Notification ID: ${replyingToNotification?.id}`);
     console.log(`Reply Message: ${replyMessage}`);
     alert(`Reply to ${replyingToNotification?.sender} sent (simulated):\n"${replyMessage}"`);
     // --- End Placeholder ---
 
-    handleCloseReplyDialog(); // Close the dialog after sending
+    handleCloseReplyDialog();
   };
   // --- End Reply Dialog Handlers ---
 
 
-  const handleMarkAsRead = (notificationId) => {
-    const updatedNotifications = notifications.map(notif =>
-      notif.id === notificationId ? { ...notif, read: true } : notif
-    );
-    setNotifications(updatedNotifications);
-    // Persist the change to local storage
-    localStorage.setItem('notifications', JSON.stringify(updatedNotifications));
-    console.log(`Marked notification ${notificationId} as read.`);
+  const handleMarkAsRead = async (notificationId) => {
+    try {
+      const notificationDocRef = doc(db, "notifications", notificationId);
+      await updateDoc(notificationDocRef, {
+        read: true
+      });
+      // Update local state to reflect the change immediately
+      setNotifications(prevNotifications =>
+        prevNotifications.map(notif =>
+          notif.id === notificationId ? { ...notif, read: true } : notif
+        )
+      );
+      console.log(`Marked notification ${notificationId} as read in Firestore.`);
+    } catch (err) {
+      console.error("Error marking notification as read:", err);
+      alert("Failed to mark notification as read. Please try again.");
+    }
   };
 
 
   return (
     <Box sx={{ width: '100%', maxWidth: 800, margin: 'auto', padding: 3 }}>
-      <Typography variant="h4" component="h1" gutterBottom>
-        Notifications
-      </Typography>
+      {loading && (
+        <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
+          <Typography>Loading notifications...</Typography>
+        </Box>
+      )}
+      {error && (
+        <Box sx={{ display: 'flex', justifyContent: 'center', my: 4, color: 'red' }}>
+          <Typography>{error}</Typography>
+        </Box>
+      )}
+      {!loading && !error && (
+        <>
+          <Typography variant="h4" component="h1" gutterBottom>
+            Notifications
+          </Typography>
 
-      {notifications.length === 0 ? (
-        <Typography variant="body1" sx={{ mt: 2 }}>
-          You have no new notifications.
-        </Typography>
-      ) : (
-        <Stack spacing={2} divider={<Divider flexItem />}>
-          {notifications.map((notification) => (
-            <Paper
-              key={notification.id}
-              elevation={notification.read ? 1 : 3}
-              sx={{
-                padding: 2,
-                opacity: notification.read ? 0.7 : 1,
-                transition: 'opacity 0.3s ease, box-shadow 0.3s ease',
-              }}
-            >
-              <Typography variant="subtitle2" color="text.secondary">
-                From: {notification.sender} - {new Date(notification.timestamp).toLocaleString()}
-              </Typography>
-              <Typography variant="body1" sx={{ my: 1 }}>
-                {notification.message}
-              </Typography>
-              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 1 }}>
-                {notification.type === 'grade_update' && (
-                  <Link to="/grades" style={{ textDecoration: 'none' }}>
-                    <Button variant="contained" size="small" color="primary">
-                      View Grades
-                    </Button>
-                  </Link>
-                )}
-                <Button
-                  variant="outlined"
-                  size="small"
-                  color="secondary"
-                  onClick={() => handleReplyClick(notification)} // Pass the notification object
+          {notifications.length === 0 ? (
+            <Typography variant="body1" sx={{ mt: 2 }}>
+              You have no new notifications.
+            </Typography>
+          ) : (
+            <Stack spacing={2} divider={<Divider flexItem />}>
+              {notifications.map((notification) => (
+                <Paper
+                  key={notification.id}
+                  elevation={notification.read ? 1 : 3}
+                  sx={{
+                    padding: 2,
+                    opacity: notification.read ? 0.7 : 1,
+                    transition: 'opacity 0.3s ease, box-shadow 0.3s ease',
+                  }}
                 >
-                  Reply
-                </Button>
-                 {!notification.read && (
+                  <Typography variant="subtitle2" color="text.secondary">
+                    From: {notification.sender} - {new Date(notification.timestamp).toLocaleString()}
+                  </Typography>
+                  <Typography variant="body1" sx={{ my: 1 }}>
+                    {notification.message}
+                  </Typography>
+                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 1 }}>
+                    {notification.type === 'grade_update' && (
+                      <Link to="/grades" style={{ textDecoration: 'none' }}>
+                        <Button variant="contained" size="small" color="primary">
+                          View Grades
+                        </Button>
+                      </Link>
+                    )}
                     <Button
-                        variant="outlined"
-                        size="small"
-                        onClick={() => handleMarkAsRead(notification.id)}
+                      variant="outlined"
+                      size="small"
+                      color="secondary"
+                      onClick={() => handleReplyClick(notification)}
                     >
-                        Mark as Read
+                      Reply
                     </Button>
-                 )}
-              </Box>
-            </Paper>
-          ))}
-        </Stack>
+                    {!notification.read && (
+                        <Button
+                            variant="outlined"
+                            size="small"
+                            onClick={() => handleMarkAsRead(notification.id)}
+                        >
+                            Mark as Read
+                        </Button>
+                    )}
+                  </Box>
+                </Paper>
+              ))}
+            </Stack>
+          )}
+        </>
       )}
 
       {/* --- Reply Dialog --- */}
@@ -179,17 +177,17 @@ export default function NotificationsList() {
             Original message: "{replyingToNotification?.message}"
           </DialogContentText>
           <TextField
-            autoFocus // Focus the input field when the dialog opens
+            autoFocus
             margin="dense"
             id="reply-message"
             label="Your Reply"
             type="text"
             fullWidth
             variant="outlined"
-            multiline // Allow multiple lines
-            rows={4} // Start with 4 rows high
+            multiline
+            rows={4}
             value={replyMessage}
-            onChange={(e) => setReplyMessage(e.target.value)} // Update state on change
+            onChange={(e) => setReplyMessage(e.target.value)}
           />
         </DialogContent>
         <DialogActions>

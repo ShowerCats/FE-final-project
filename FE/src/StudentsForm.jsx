@@ -1,4 +1,3 @@
-// c:\Users\Ori\Downloads\FE Project\FE-final-project\FE\src\StudentsForm.jsx
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import TextField from '@mui/material/TextField';
@@ -7,7 +6,9 @@ import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Container from '@mui/material/Container';
 import Grid from '@mui/material/Grid';
-import Alert from '@mui/material/Alert'; // Import Alert for error messages
+import Alert from '@mui/material/Alert';
+import { firestore as db} from './Firebase/config.js'; // Assuming your firebase config is in 'src/firebase.js'
+import { collection, addDoc, query, where, getDocs } from "firebase/firestore";
 
 function StudentsForm() {
   const navigate = useNavigate();
@@ -21,103 +22,103 @@ function StudentsForm() {
     phoneNumber: '',
     address: '',
   });
-  // Add state for validation errors
   const [errors, setErrors] = useState({});
-  const [submitError, setSubmitError] = useState(''); // General error on submit
-
-  const validateField = (name, value) => {
-    let error = '';
-    if (!value) {
-      error = 'This field is required';
-    } else {
-      switch (name) {
-        case 'email':
-          // Basic email regex
-          if (!/\S+@\S+\.\S+/.test(value)) {
-            error = 'Email address is invalid';
-          }
-          break;
-        case 'phoneNumber':
-          // Basic phone regex (e.g., 10 digits) - adjust as needed
-          if (!/^\d{10}$/.test(value.replace(/-/g, ''))) { // Allow dashes but validate 10 digits
-            error = 'Phone number must be 10 digits';
-          }
-          break;
-        case 'studentId':
-          // Must contain only numbers
-          if (!/^\d+$/.test(value)) { // <--- MODIFIED LINE
-            error = 'Student ID must contain only numbers'; // <--- MODIFIED LINE
-          }
-          break;
-        // Add more specific validations if needed (e.g., date format)
-        default:
-          break;
-      }
-    }
-    return error;
-  };
-
+  const [submitError, setSubmitError] = useState('');
 
   const handleChange = (event) => {
     const { name, value } = event.target;
-    setFormData((prevData) => ({
+    setFormData(prevData => ({
       ...prevData,
       [name]: value,
     }));
-    // Validate on change and clear error if valid
-    const error = validateField(name, value);
-    setErrors((prevErrors) => ({
-      ...prevErrors,
-      [name]: error, // Set error message or empty string if valid
-    }));
+    // Clear error for the field being changed
+    if (errors[name]) {
+      setErrors(prevErrors => ({
+        ...prevErrors,
+        [name]: '',
+      }));
+    }
   };
 
   const validateForm = () => {
     const newErrors = {};
     let isValid = true;
-    Object.keys(formData).forEach((key) => {
-      const error = validateField(key, formData[key]);
-      if (error) {
-        newErrors[key] = error;
+
+    // Basic required field validation (expand as needed)
+    if (!formData.firstName.trim()) {
+      newErrors.firstName = 'First name is required.';
+      isValid = false;
+    }
+    if (!formData.lastName.trim()) {
+      newErrors.lastName = 'Last name is required.';
+      isValid = false;
+    }
+    if (!formData.email.trim()) {
+      newErrors.email = 'Email is required.';
+      isValid = false;
+    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
+      newErrors.email = 'Email address is invalid.';
+      isValid = false;
+    }
+    if (!formData.studentId.trim()) {
+      newErrors.studentId = 'Student ID is required.';
+      isValid = false;
+    }
+    if (!formData.major.trim()) {
+      newErrors.major = 'Major is required.';
+      isValid = false;
+    }
+    if (!formData.dateOfBirth) {
+      newErrors.dateOfBirth = 'Date of birth is required.';
+      isValid = false;
+    }
+    if (!formData.phoneNumber.trim()) {
+      newErrors.phoneNumber = 'Phone number is required.';
+      isValid = false;
+    } else if (!/^\d{10}$/.test(formData.phoneNumber.replace(/\D/g, ''))) { // Simple 10 digit check
+        newErrors.phoneNumber = 'Phone number must be 10 digits.';
         isValid = false;
-      }
-    });
+    }
+    if (!formData.address.trim()) {
+      newErrors.address = 'Address is required.';
+      isValid = false;
+    }
+
     setErrors(newErrors);
     return isValid;
   };
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
-    setSubmitError(''); // Clear previous submit error
+    setSubmitError('');
 
     if (!validateForm()) {
       setSubmitError('Please fix the errors in the form.');
-      return; // Stop submission if validation fails
+      return;
     }
 
     try {
-      const existingStudents = JSON.parse(localStorage.getItem('students')) || [];
-      // Check for duplicate Student ID before adding
-      if (existingStudents.some(student => student.studentId === formData.studentId)) {
-         setErrors(prev => ({ ...prev, studentId: 'This Student ID already exists.' }));
-         setSubmitError('Cannot add student: Duplicate Student ID.');
+      const studentsCollectionRef = collection(db, "students");
+      const q = query(studentsCollectionRef, where("studentId", "==", formData.studentId));
+      const querySnapshot = await getDocs(q);
+
+      if (!querySnapshot.empty) {
+         setErrors(prev => ({ ...prev, studentId: 'This Student ID already exists in the database.' }));
+         setSubmitError('Cannot add student: Duplicate Student ID found in the database.');
          return;
       }
 
-      existingStudents.push(formData);
-      localStorage.setItem('students', JSON.stringify(existingStudents));
-      // No need to clear form data here, navigation will unmount it
-      alert('Student data saved successfully!'); // Simple feedback
-      navigate('/students'); // Navigate back to the list
+      await addDoc(studentsCollectionRef, formData);
+      alert('Student data saved successfully to Firestore!');
+      navigate('/students');
     } catch (error) {
-       console.error("Failed to save to localStorage:", error);
-       setSubmitError('An error occurred while saving data. Please try again.');
+       console.error("Error adding document to Firestore: ", error);
+       setSubmitError('An error occurred while saving data to Firestore. Please try again.');
     }
   };
 
   return (
-    // Add noValidate to form to prevent default browser validation interfering
-    <Container maxWidth="md" sx={{ marginTop: 10, paddingBottom: 4 }}> {/* Added padding bottom */}
+    <Container maxWidth="md" sx={{ marginTop: 10, paddingBottom: 4 }}>
       <Box sx={{ my: 4 }}>
         <Typography variant="h4" component="h1" gutterBottom>
           Student Registration Form
@@ -125,7 +126,6 @@ function StudentsForm() {
         {submitError && <Alert severity="error" sx={{ mb: 2 }}>{submitError}</Alert>}
         <form onSubmit={handleSubmit} noValidate>
           <Grid container spacing={2}>
-            {/* Update TextFields to show errors */}
             <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth
@@ -134,8 +134,8 @@ function StudentsForm() {
                 value={formData.firstName}
                 onChange={handleChange}
                 required
-                error={!!errors.firstName} // Show error state
-                helperText={errors.firstName} // Show error message
+                error={!!errors.firstName}
+                helperText={errors.firstName}
               />
             </Grid>
             <Grid item xs={12} sm={6}>
@@ -190,7 +190,7 @@ function StudentsForm() {
             <Grid item xs={12}>
               <TextField
                 fullWidth
-                label="Date of Birth" // Added label for clarity
+                label="Date of Birth"
                 type="date"
                 name="dateOfBirth"
                 value={formData.dateOfBirth}
@@ -239,5 +239,4 @@ function StudentsForm() {
     </Container>
   );
 }
-
 export default StudentsForm;
