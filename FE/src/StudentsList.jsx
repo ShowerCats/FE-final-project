@@ -13,6 +13,7 @@ import Typography from '@mui/material/Typography';
 import Container from '@mui/material/Container'; // Added Container for better layout
 import { firestore as db } from './Firebase/config.js'; // Import Firestore instance
 import { collection, getDocs } from "firebase/firestore"; // Import Firestore functions
+import EditIcon from '@mui/icons-material/Edit'; // Optional: for an icon button
 
 function StudentsList() {
   const [students, setStudents] = useState([]);
@@ -88,6 +89,7 @@ function StudentsList() {
                 <TableCell>Date of Birth</TableCell>
                 <TableCell>Phone Number</TableCell>
                 <TableCell>Address</TableCell>
+                <TableCell align="center">Actions</TableCell> {/* New header for actions */}
               </TableRow>
             </TableHead>
             <TableBody>
@@ -104,6 +106,17 @@ function StudentsList() {
                   <TableCell>{student.dateOfBirth}</TableCell>
                   <TableCell>{student.phoneNumber}</TableCell>
                   <TableCell>{student.address}</TableCell>
+                  <TableCell align="center">
+                    <Button
+                      variant="outlined"
+                      color="primary"
+                      size="small"
+                      component={Link} // Use Link component for navigation
+                      to={`/students/edit/${student.id}`} // Navigate to the edit page with student's Firestore ID
+                    >
+                      Edit
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>

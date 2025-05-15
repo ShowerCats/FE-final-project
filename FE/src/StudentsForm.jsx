@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react'; // Added useEffect
+import { useNavigate, useParams } from 'react-router-dom'; // Added useParams
 import TextField from '@mui/material/TextField';
 import Button from '@mui/material/Button';
 import Box from '@mui/material/Box';
@@ -7,9 +7,8 @@ import Typography from '@mui/material/Typography';
 import Container from '@mui/material/Container';
 import Grid from '@mui/material/Grid';
 import Alert from '@mui/material/Alert';
-import { firestore as db} from './Firebase/config.js'; // Assuming your firebase config is in 'src/firebase.js'
-import { collection, addDoc, query, where, getDocs } from "firebase/firestore";
-
+import { firestore as db} from './Firebase/config.js';
+import { collection, addDoc, query, where, getDocs, doc, getDoc, updateDoc } from "firebase/firestore"; // Added doc, getDoc, updateDoc 
 function StudentsForm() {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
@@ -22,6 +21,8 @@ function StudentsForm() {
     phoneNumber: '',
     address: '',
   });
+  const { studentId } = useParams(); // Get studentId from URL params
+  const isEditMode = !!studentId; // Determine if in edit mode
   const [errors, setErrors] = useState({});
   const [submitError, setSubmitError] = useState('');
 
@@ -39,6 +40,29 @@ function StudentsForm() {
       }));
     }
   };
+
+  // Fetch student data if in edit mode
+  useEffect(() => {
+    const fetchStudentData = async () => {
+      if (isEditMode && studentId) {
+        try {
+          const studentDocRef = doc(db, "students", studentId);
+          const studentDocSnap = await getDoc(studentDocRef);
+
+          if (studentDocSnap.exists()) {
+            setFormData(studentDocSnap.data());
+          } else {
+            console.error("No such document!");
+            setSubmitError("Student not found.");
+          }
+        } catch (error) {
+          console.error("Error fetching student document: ", error);
+          setSubmitError("Failed to load student data for editing.");
+        }
+      }
+    };
+    fetchStudentData();
+  }, [studentId, isEditMode]); // Re-run effect if studentId or mode changes
 
   const validateForm = () => {
     const newErrors = {};
@@ -88,24 +112,41 @@ function StudentsForm() {
     return isValid;
   };
 
+  const addStudent = async (data) => {
+    const studentsCollectionRef = collection(db, "students");
+    const q = query(studentsCollectionRef, where("studentId", "==", data.studentId));
+    const querySnapshot = await getDocs(q);
+
+    if (!querySnapshot.empty) {
+       setErrors(prev => ({ ...prev, studentId: 'This Student ID already exists in the database.' }));
+       setSubmitError('Cannot add student: Duplicate Student ID found in the database.');
+       throw new Error('Duplicate Student ID'); // Throw to prevent navigation
+    }
+
+    await addDoc(studentsCollectionRef, data);
+    alert('Student data saved successfully to Firestore!');
+  };
+
+  const updateStudent = async (id, data) => {
+     // Optional: Add validation here if needed, though validateForm covers most.
+     // You might want to check if the studentId is being changed to an existing one (more complex)
+     const studentDocRef = doc(db, "students", id);
+     await updateDoc(studentDocRef, data);
+     alert('Student data updated successfully in Firestore!');
+  };
+
   const handleSubmit = async (event) => {
     event.preventDefault();
     setSubmitError('');
 
     if (!validateForm()) {
-      setSubmitError('Please fix the errors in the form.');
+      setSubmitError('Please fix the errors in the form before submitting.');
       return;
     }
 
     try {
-      const studentsCollectionRef = collection(db, "students");
-      const q = query(studentsCollectionRef, where("studentId", "==", formData.studentId));
-      const querySnapshot = await getDocs(q);
-
-      if (!querySnapshot.empty) {
-         setErrors(prev => ({ ...prev, studentId: 'This Student ID already exists in the database.' }));
-         setSubmitError('Cannot add student: Duplicate Student ID found in the database.');
-         return;
+      if (isEditMode) {
+        await updateStudent(studentId, formData);
       }
 
       await addDoc(studentsCollectionRef, formData);
@@ -113,7 +154,10 @@ function StudentsForm() {
       navigate('/students');
     } catch (error) {
        console.error("Error adding document to Firestore: ", error);
-       setSubmitError('An error occurred while saving data to Firestore. Please try again.');
+       // Handle specific errors like duplicate ID from addStudent
+       if (error.message !== 'Duplicate Student ID') {
+         setSubmitError('An error occurred while saving data to Firestore. Please try again.');
+       }
     }
   };
 
@@ -121,7 +165,7 @@ function StudentsForm() {
     <Container maxWidth="md" sx={{ marginTop: 10, paddingBottom: 4 }}>
       <Box sx={{ my: 4 }}>
         <Typography variant="h4" component="h1" gutterBottom>
-          Student Registration Form
+          {isEditMode ? 'Edit Student' : 'Student Registration Form'} {/* Change title based on mode */}
         </Typography>
         {submitError && <Alert severity="error" sx={{ mb: 2 }}>{submitError}</Alert>}
         <form onSubmit={handleSubmit} noValidate>
@@ -171,6 +215,7 @@ function StudentsForm() {
                 value={formData.studentId}
                 onChange={handleChange}
                 required
+                disabled={isEditMode} // Prevent changing Student ID in edit mode (optional but common)
                 error={!!errors.studentId}
                 helperText={errors.studentId}
               />
@@ -230,7 +275,7 @@ function StudentsForm() {
             </Grid>
             <Grid item xs={12}>
               <Button type="submit" variant="contained" color="primary">
-                Register
+                {isEditMode ? 'Update Student' : 'Register'} {/* Change button text */}
               </Button>
             </Grid>
           </Grid>

@@ -13,6 +13,7 @@ import Grades from './Grades';
 import Courses from './Courses';
 import Typography from '@mui/material/Typography';
 
+
 // Firestore imports
 import { firestore as db } from './Firebase/config.js';
 import { collection, getDocs, writeBatch, doc } from "firebase/firestore"; // Added doc for specific ID setting
@@ -94,6 +95,7 @@ function App() {
           <Route path="/grades" element={<Grades />} />
           <Route path="/about" element={<About />} />
           <Route path="*" element={<Typography>Page Not Found</Typography>} />
+          <Route path="/students/edit/:studentId" element={<StudentsForm />} /> {/* For editing */}
         </Routes>
       </Box>
     </>
