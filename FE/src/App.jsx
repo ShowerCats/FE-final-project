@@ -11,6 +11,7 @@ import About from './About';
 import NotificationsList from './NotificationsList';
 import Grades from './Grades';
 import Courses from './Courses';
+import CourseDetails from './CourseDetails'; // Import CourseDetails
 import Typography from '@mui/material/Typography';
 
 
@@ -72,12 +73,131 @@ function App() {
       } else {
         console.log("Notification data already exists in Firestore. Skipping population.");
       }
+
+      // Populate Professors
+      const professorsCollectionRef = collection(db, "professors");
+      const professorsSnapshot = await getDocs(professorsCollectionRef);
+      if (professorsSnapshot.empty) {
+        console.log("Populating initial professor data into Firestore...");
+        const initialProfessors = [
+          { id: "P2001", firstName: "Albus", lastName: "Dumbledore", department: "Transfiguration", email: "albus.d@hogwarts.edu" },
+          { id: "P2002", firstName: "Minerva", lastName: "McGonagall", department: "Transfiguration", email: "minerva.m@hogwarts.edu" },
+          { id: "P2003", firstName: "Severus", lastName: "Snape", department: "Potions", email: "severus.s@hogwarts.edu" },
+          { id: "P2004", firstName: "Filius", lastName: "Flitwick", department: "Charms", email: "filius.f@hogwarts.edu" },
+          { id: "P2005", firstName: "Pomona", lastName: "Sprout", department: "Herbology", email: "pomona.s@hogwarts.edu" },
+          { id: "P2006", firstName: "Indiana", lastName: "Jones", department: "Archaeology", email: "indy.j@university.edu" },
+          { id: "P2007", firstName: "Sheldon", lastName: "Cooper", department: "Theoretical Physics", email: "shelly.c@caltech.edu" },
+        ];
+        const professorBatch = writeBatch(db);
+        initialProfessors.forEach(prof => {
+          // Use the predefined 'id' as the document ID
+          const profDocRef = doc(db, "professors", prof.id);
+          professorBatch.set(profDocRef, { firstName: prof.firstName, lastName: prof.lastName, department: prof.department, email: prof.email });
+        });
+        await professorBatch.commit();
+        console.log("Initial professor data populated into Firestore.");
+      } else {
+        console.log("Professor data already exists in Firestore. Skipping population.");
+      }
+
+      // Populate Courses
+      const coursesCollectionRef = collection(db, "courses");
+      const coursesSnapshot = await getDocs(coursesCollectionRef);
+      if (coursesSnapshot.empty) {
+        console.log("Populating initial course data into Firestore...");
+        const initialCourses = [
+          { name: "Introduction to Magic", description: "Fundamental magical theories and practices.", credits: 3, professorId: "P2001" },
+          { name: "Transfiguration Basics", description: "Learn to change the form and appearance of objects.", credits: 4, professorId: "P2002" },
+          { name: "Potions I", description: "Brewing simple potions and understanding ingredients.", credits: 3, professorId: "P2003" },
+          { name: "Charms & Enchantments", description: "Mastering essential charms for everyday use.", credits: 4, professorId: "P2004" },
+          { name: "Herbology Fundamentals", description: "Study of magical plants and their properties.", credits: 3, professorId: "P2005" },
+          { name: "Defense Against the Dark Arts", description: "Basic defensive spells and creatures.", credits: 4, professorId: "P2001" }, // Dumbledore can teach this too
+          { name: "Advanced Potion Brewing", description: "Complex potions and their applications.", credits: 4, professorId: "P2003" },
+          { name: "Ancient Runes", description: "Translating and understanding ancient magical scripts.", credits: 3, professorId: "P2006" }, // Indy for a change
+          { name: "Magical Creatures Care", description: "Understanding and caring for various magical beasts.", credits: 3, professorId: "P2005" },
+          { name: "Theoretical Physics for Wizards", description: "Exploring the intersection of muggle science and magic.", credits: 3, professorId: "P2007" },
+          { name: "Advanced Charms", description: "Complex enchantments and their practical uses.", credits: 4, professorId: "P2004" },
+          { name: "Field Archaeology and Curse Breaking", description: "Practical applications of archaeology in hazardous environments.", credits: 4, professorId: "P2006" },
+          { name: "String Theory and Spellcraft", description: "Advanced theoretical concepts in magic.", credits: 3, professorId: "P2007" },
+          { name: "Intermediate Transfiguration", description: "More complex transformations and human transfiguration.", credits: 4, professorId: "P2002" },
+          { name: "Muggle Studies", description: "Understanding the non-magical world.", credits: 2, professorId: "P2001" }
+        ];
+        const courseBatch = writeBatch(db);
+        initialCourses.forEach(course => {
+          const courseDocRef = doc(collection(db, "courses")); // Firestore auto-generates ID
+          courseBatch.set(courseDocRef, course);
+        });
+        await courseBatch.commit();
+        console.log("Initial course data populated into Firestore.");
+      } else {
+        console.log("Course data already exists in Firestore. Skipping population.");
+      }
+
+      // --- Auto-enroll students in empty courses using existing Firestore students ---
+      console.log("Checking for empty courses to auto-enroll existing students...");
+      const allStudentsSnapshot = await getDocs(collection(db, "students"));
+      const allCoursesSnapshot = await getDocs(collection(db, "courses"));
+
+      if (!allStudentsSnapshot.empty && !allCoursesSnapshot.empty) {
+        const studentDocs = allStudentsSnapshot.docs; // Array of student DocumentSnapshots
+        const courseDocs = allCoursesSnapshot.docs;   // Array of course DocumentSnapshots
+
+        // Get current enrollments to find empty courses
+        const enrollmentsSnapshot = await getDocs(collection(db, "enrollments"));
+        const courseIdsWithEnrollments = new Set();
+        enrollmentsSnapshot.docs.forEach(enrollmentDoc => {
+          courseIdsWithEnrollments.add(enrollmentDoc.data().courseId);
+        });
+
+        const enrollmentBatch = writeBatch(db);
+        let enrollmentsMade = 0;
+
+        courseDocs.forEach(courseDoc => {
+          const currentCourseId = courseDoc.id;
+          const currentCourseName = courseDoc.data().name || 'Unnamed Course';
+          console.log(`Processing course: ${currentCourseName} (ID: ${currentCourseId})`);
+
+          // If this course ID is not in the set of courses that already have enrollments
+          if (!courseIdsWithEnrollments.has(currentCourseId)) {
+            console.log(`  Course ${currentCourseName} is EMPTY.`);
+            if (studentDocs.length > 0) {
+              console.log(`  Students are available (count: ${studentDocs.length}). Attempting to enroll a random student.`);
+              const randomStudentIndex = Math.floor(Math.random() * studentDocs.length);
+              const randomStudentDoc = studentDocs[randomStudentIndex]; // This is a DocumentSnapshot
+              const studentData = randomStudentDoc.data();
+
+              console.log(`  Selected student: ${studentData.firstName || 'N/A'} ${studentData.lastName || 'N/A'} (ID: ${randomStudentDoc.id}) for course ${currentCourseName}`);
+
+              const enrollmentRef = doc(collection(db, "enrollments")); // Auto-generate ID for the new enrollment
+              enrollmentBatch.set(enrollmentRef, {
+                studentId: randomStudentDoc.id, // Firestore document ID of the student
+                courseId: currentCourseId,         // Firestore document ID of the course
+                enrollmentDate: new Date().toISOString().split('T')[0] // Current date
+              });
+              enrollmentsMade++;
+              console.log(`  Enrollment for ${studentData.firstName || 'N/A'} in ${currentCourseName} added to batch.`);
+            } else {
+              console.log(`  Course ${currentCourseName} is empty, but NO students are available to enroll.`);
+            }
+          } else {
+            console.log(`  Course ${currentCourseName} (ID: ${currentCourseId}) already has enrollments. Skipping.`);
+          }
+        });
+
+        if (enrollmentsMade > 0) {
+          await enrollmentBatch.commit();
+          console.log(`${enrollmentsMade} automatic enrollments created for empty courses.`);
+        } else {
+          console.log("No empty courses found needing auto-enrollment, or no students available in Firestore.");
+        }
+      } else {
+        console.log("Skipping auto-enrollment for empty courses: No students or no courses found in Firestore.");
+      }
     };
 
     populateInitialData().catch(error => {
       console.error("Error populating initial data:", error);
     });
-
   }, []); // Empty dependency array ensures this runs once on mount
 
   return (
@@ -92,10 +212,11 @@ function App() {
           <Route path="/students" element={<StudentsList />} />
           <Route path="/students/add" element={<StudentsForm />} />
           <Route path="/courses" element={<Courses />} />
+          <Route path="/courses/:courseId" element={<CourseDetails />} />
+          <Route path="/students/edit/:studentId" element={<StudentsForm />} /> {/* For editing */}
           <Route path="/grades" element={<Grades />} />
           <Route path="/about" element={<About />} />
           <Route path="*" element={<Typography>Page Not Found</Typography>} />
-          <Route path="/students/edit/:studentId" element={<StudentsForm />} /> {/* For editing */}
         </Routes>
       </Box>
     </>

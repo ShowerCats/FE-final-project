@@ -1,95 +1,385 @@
-import React from 'react';
-import Box from '@mui/material/Box';
+import React, { useState, useEffect } from 'react';
+import Container from '@mui/material/Container';
+import { useNavigate } from 'react-router-dom'; // Import useNavigate
 import Typography from '@mui/material/Typography';
 import Paper from '@mui/material/Paper';
-import Table from '@mui/material/Table';
-import TableBody from '@mui/material/TableBody';
-import TableCell from '@mui/material/TableCell';
-import TableContainer from '@mui/material/TableContainer';
-import TableHead from '@mui/material/TableHead';
-import TableRow from '@mui/material/TableRow';
-import { styled } from '@mui/material/styles';
-import Button from '@mui/material/Button'; // Optional: For actions like "View Details"
+import List from '@mui/material/List';
+import ListItem from '@mui/material/ListItem';
+import ListItemText from '@mui/material/ListItemText';
+import Divider from '@mui/material/Divider';
+import Box from '@mui/material/Box';
+import CircularProgress from '@mui/material/CircularProgress';
+// Firebase imports
+import {
+  collection,
+  getDocs,
+  query,
+  where,
+  doc,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  writeBatch
+} from "firebase/firestore";
+import { firestore as db } from './Firebase/config.js'; // Adjust path if necessary
 
-const mockCourses = [
-  { id: 'CS101', name: 'Introduction to Programming', instructor: 'Prof. Smith', credits: 3, description: 'Fundamentals of programming using Python.' },
-  { id: 'MA101', name: 'Calculus I', instructor: 'Prof. Johnson', credits: 4, description: 'Limits, derivatives, and introduction to integration.' },
-  { id: 'PH201', name: 'University Physics I', instructor: 'Dr. Lee', credits: 4, description: 'Mechanics, heat, and thermodynamics.' },
-  { id: 'EN102', name: 'College Composition II', instructor: 'Ms. Davis', credits: 3, description: 'Advanced essay writing and research methods.' },
-  { id: 'HI105', name: 'World History Since 1500', instructor: 'Prof. Khan', credits: 3, description: 'Survey of major global events and developments.' },
-];
-
-const StyledTableRow = styled(TableRow)(({ theme }) => ({
-  '&:nth-of-type(odd)': {
-    backgroundColor: theme.palette.action.hover,
-  },
-  '&:last-child td, &:last-child th': {
-    border: 0,
-  },
-}));
+// Material UI components for Form/Dialog
+import Button from '@mui/material/Button';
+import TextField from '@mui/material/TextField';
+import Dialog from '@mui/material/Dialog';
+import DialogActions from '@mui/material/DialogActions';
+import DialogContent from '@mui/material/DialogContent';
+import DialogContentText from '@mui/material/DialogContentText';
+import DialogTitle from '@mui/material/DialogTitle';
+import IconButton from '@mui/material/IconButton';
+import EditIcon from '@mui/icons-material/Edit';
+import DeleteIcon from '@mui/icons-material/Delete';
+import AddIcon from '@mui/icons-material/Add';
+import Select from '@mui/material/Select';
+import MenuItem from '@mui/material/MenuItem';
+import FormControl from '@mui/material/FormControl';
+import InputLabel from '@mui/material/InputLabel';
 
 export default function Courses() {
-  const courses = mockCourses; // In a real app, fetch this data
+  const [courses, setCourses] = useState([]);
+  const [professors, setProfessors] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const handleViewDetails = (courseId) => {
-    // Placeholder for future functionality (e.g., navigate to a course detail page)
-    alert(`View details for course ${courseId} (not implemented)`);
+  // State for Add/Edit Course Modal
+  const [openFormDialog, setOpenFormDialog] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [currentCourse, setCurrentCourse] = useState({
+    id: null,
+    name: '',
+    description: '',
+    credits: '',
+    professorId: ''
+  });
+
+  // State for Delete Confirmation Dialog
+  const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
+  const [courseToDelete, setCourseToDelete] = useState(null);
+  const navigate = useNavigate(); // Initialize useNavigate
+
+  const fetchAllData = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      // 1. Fetch all professors
+      const professorsSnapshot = await getDocs(collection(db, "professors"));
+      const professorsData = professorsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setProfessors(professorsData);
+      const professorsMap = professorsData.reduce((acc, prof) => {
+        acc[prof.id] = `${prof.firstName} ${prof.lastName}`;
+        return acc;
+      }, {});
+
+      // 2. Fetch all enrollments to count students per course
+      const enrollmentsSnapshot = await getDocs(collection(db, "enrollments"));
+      const studentCounts = enrollmentsSnapshot.docs.reduce((acc, doc) => {
+        const { courseId } = doc.data();
+        acc[courseId] = (acc[courseId] || 0) + 1;
+        return acc;
+      }, {});
+
+      // 3. Fetch all courses
+      const coursesSnapshot = await getDocs(collection(db, "courses"));
+      const coursesData = coursesSnapshot.docs.map(doc => {
+        const course = { id: doc.id, ...doc.data() };
+        return {
+          ...course,
+          professorName: professorsMap[course.professorId] || 'N/A',
+          studentCount: studentCounts[course.id] || 0
+        };
+      });
+      setCourses(coursesData);
+
+    } catch (err) {
+      console.error("Error fetching data:", err);
+      setError("Failed to load data. Please try again later.");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  return (
-    <Box sx={{ width: '100%', maxWidth: 1100, margin: 'auto', padding: 3 }}>
-      <Typography variant="h4" component="h1" gutterBottom sx={{ mb: 3 }}>
-        Available Courses
-      </Typography>
+  useEffect(() => {
+    fetchAllData();
+  }, []); // Empty dependency array means this effect runs once on mount
 
-      {courses.length === 0 ? (
-        <Paper elevation={2} sx={{ padding: 3, textAlign: 'center' }}>
-          <Typography variant="body1">
-            No courses available at this time.
+  // CRUD Handlers
+  const handleOpenAddDialog = () => {
+    setIsEditing(false);
+    setCurrentCourse({ id: null, name: '', description: '', credits: '', professorId: '' });
+    setOpenFormDialog(true);
+  };
+
+  const handleOpenEditDialog = (course) => {
+    setIsEditing(true);
+    setCurrentCourse({ ...course });
+    setOpenFormDialog(true);
+  };
+
+  const handleCloseFormDialog = () => {
+    setOpenFormDialog(false);
+  };
+
+  const handleFormChange = (event) => {
+    const { name, value } = event.target;
+    setCurrentCourse(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleFormSubmit = async () => {
+    if (!currentCourse.name || !currentCourse.professorId || !currentCourse.credits) {
+      setError("Course Name, Professor, and Credits are required.");
+      return;
+    }
+    setLoading(true);
+    try {
+      const courseData = {
+        name: currentCourse.name,
+        description: currentCourse.description,
+        credits: parseInt(currentCourse.credits, 10),
+        professorId: currentCourse.professorId
+      };
+
+      if (isEditing && currentCourse.id) {
+        const courseRef = doc(db, "courses", currentCourse.id);
+        await updateDoc(courseRef, courseData);
+      } else {
+        await addDoc(collection(db, "courses"), courseData);
+      }
+      setOpenFormDialog(false);
+      setError(null); // Clear previous errors
+      fetchAllData();
+    } catch (err) {
+      console.error("Error saving course:", err);
+      setError(`Failed to ${isEditing ? 'update' : 'add'} course. Please try again.`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleOpenDeleteDialog = (course) => {
+    setCourseToDelete(course);
+    setOpenDeleteDialog(true);
+  };
+
+  const handleCloseDeleteDialog = () => {
+    setOpenDeleteDialog(false);
+    setCourseToDelete(null);
+  };
+
+  const handleDeleteCourse = async () => {
+    if (!courseToDelete) return;
+    setLoading(true);
+    try {
+      const batch = writeBatch(db);
+      const courseRef = doc(db, "courses", courseToDelete.id);
+      batch.delete(courseRef);
+
+      const enrollmentsQuery = query(collection(db, "enrollments"), where("courseId", "==", courseToDelete.id));
+      const enrollmentsSnapshot = await getDocs(enrollmentsQuery);
+      enrollmentsSnapshot.docs.forEach(enrollmentDoc => {
+        batch.delete(doc(db, "enrollments", enrollmentDoc.id));
+      });
+
+      await batch.commit();
+      setOpenDeleteDialog(false);
+      setCourseToDelete(null);
+      setError(null); // Clear previous errors
+      fetchAllData();
+    } catch (err) {
+      console.error("Error deleting course:", err);
+      setError("Failed to delete course. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCourseClick = (courseId) => {
+    navigate(`/courses/${courseId}`);
+  };
+
+
+  if (loading && courses.length === 0) {
+    return (
+      <Container maxWidth="md" sx={{ textAlign: 'center', py: 5 }}>
+        <CircularProgress />
+        <Typography variant="h6" sx={{ mt: 2 }}>Loading courses...</Typography>
+      </Container>
+    );
+  }
+
+  if (error && !(loading && courses.length > 0)) {
+    return (
+      <Container maxWidth="md" sx={{ textAlign: 'center', py: 5 }}>
+        <Typography variant="h6" color="error">{error}</Typography>
+        <Button onClick={fetchAllData} variant="outlined" sx={{ mt: 2 }}>Try Again</Button>
+      </Container>
+    );
+  }
+
+  return (
+    <Container maxWidth="lg">
+      <Box sx={{ my: 4 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+          <Typography variant="h4" component="h1" gutterBottom>
+            All Courses
           </Typography>
-        </Paper>
-      ) : (
-        <TableContainer component={Paper} elevation={3}>
-          <Table sx={{ minWidth: 750 }} aria-label="courses table">
-            <TableHead sx={{ backgroundColor: 'primary.main' }}>
-              <TableRow>
-                <TableCell sx={{ color: 'common.white', fontWeight: 'bold' }}>Code</TableCell>
-                <TableCell sx={{ color: 'common.white', fontWeight: 'bold' }}>Course Name</TableCell>
-                <TableCell sx={{ color: 'common.white', fontWeight: 'bold' }}>Instructor</TableCell>
-                <TableCell sx={{ color: 'common.white', fontWeight: 'bold' }} align="center">Credits</TableCell>
-                <TableCell sx={{ color: 'common.white', fontWeight: 'bold' }}>Description</TableCell>
-                {/* Optional Action Column */}
-                {/* <TableCell sx={{ color: 'common.white', fontWeight: 'bold' }} align="center">Actions</TableCell> */}
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {courses.map((course) => (
-                <StyledTableRow key={course.id}>
-                  <TableCell component="th" scope="row">
-                    {course.id}
-                  </TableCell>
-                  <TableCell>{course.name}</TableCell>
-                  <TableCell>{course.instructor}</TableCell>
-                  <TableCell align="center">{course.credits}</TableCell>
-                  <TableCell sx={{ maxWidth: 300, whiteSpace: 'normal' }}>{course.description}</TableCell>
-                  {/* Optional Action Cell */}
-                  {/*
-                  <TableCell align="center">
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      onClick={() => handleViewDetails(course.id)}
-                    >
-                      Details
-                    </Button>
-                  </TableCell>
-                  */}
-                </StyledTableRow>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={handleOpenAddDialog}
+          >
+            Add New Course
+          </Button>
+        </Box>
+
+        {error && <Typography color="error" sx={{ mb: 2 }}>{error}</Typography>}
+
+        {courses.length === 0 && !loading ? (
+          <Typography>No courses found. Add a new one to get started!</Typography>
+        ) : (
+          <Paper elevation={3}>
+            <List>
+              {courses.map((course, index) => (
+                <React.Fragment key={course.id}>
+                  <ListItem
+                    button // Makes the ListItem interactive
+                    onClick={() => handleCourseClick(course.id)} // Navigate on click
+                    secondaryAction={
+                      <>
+                        <IconButton edge="end" aria-label="edit" onClick={(e) => { e.stopPropagation(); handleOpenEditDialog(course); }} sx={{ mr: 1 }}>
+                          <EditIcon />
+                        </IconButton>
+                        <IconButton edge="end" aria-label="delete" onClick={(e) => { e.stopPropagation(); handleOpenDeleteDialog(course); }}>
+                          <DeleteIcon />
+                        </IconButton>
+                      </>
+                    }
+                  >
+                    <ListItemText
+                      primary={`Course Name: ${course.name}`}
+                      secondary={
+                        <>
+                          <Typography component="span" variant="body2" color="text.primary">
+                            Professor: {course.professorName}
+                          </Typography>
+                          <br />
+                          <Typography component="span" variant="body2" color="text.primary">
+                            Students number: {course.studentCount}
+                          </Typography>
+                          {course.description && (
+                            <>
+                              <br />
+                              <Typography component="span" variant="body2" color="text.secondary">
+                                Description: {course.description}
+                              </Typography>
+                            </>
+                          )}
+                           {course.credits && (
+                            <>
+                              <br />
+                              <Typography component="span" variant="body2" color="text.secondary">
+                                Credits: {course.credits}
+                              </Typography>
+                            </>
+                          )}
+                        </>
+                      }
+                    />
+                  </ListItem>
+                  {index < courses.length - 1 && <Divider component="li" />}
+                </React.Fragment>
               ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      )}
-    </Box>
+            </List>
+          </Paper>
+        )}
+      </Box>
+
+      {/* Add/Edit Course Dialog */}
+      <Dialog open={openFormDialog} onClose={handleCloseFormDialog}>
+        <DialogTitle>{isEditing ? 'Edit Course' : 'Add New Course'}</DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{mb: 2}}>
+            Please fill in the details for the course.
+          </DialogContentText>
+          <TextField
+            autoFocus
+            margin="dense"
+            name="name"
+            label="Course Name"
+            type="text"
+            fullWidth
+            variant="outlined"
+            value={currentCourse.name}
+            onChange={handleFormChange}
+            required
+          />
+          <TextField
+            margin="dense"
+            name="description"
+            label="Description"
+            type="text"
+            fullWidth
+            multiline
+            rows={3}
+            variant="outlined"
+            value={currentCourse.description}
+            onChange={handleFormChange}
+          />
+          <TextField
+            margin="dense"
+            name="credits"
+            label="Credits"
+            type="number"
+            fullWidth
+            variant="outlined"
+            value={currentCourse.credits}
+            onChange={handleFormChange}
+            required
+          />
+          <FormControl fullWidth margin="dense" required>
+            <InputLabel id="professor-select-label">Professor</InputLabel>
+            <Select
+              labelId="professor-select-label"
+              name="professorId"
+              value={currentCourse.professorId}
+              label="Professor"
+              onChange={handleFormChange}
+            >
+              {professors.map((prof) => (
+                <MenuItem key={prof.id} value={prof.id}>
+                  {`${prof.firstName} ${prof.lastName}`}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseFormDialog}>Cancel</Button>
+          <Button onClick={handleFormSubmit} variant="contained" disabled={loading}>
+            {isEditing ? 'Save Changes' : 'Add Course'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={openDeleteDialog} onClose={handleCloseDeleteDialog}>
+        <DialogTitle>Confirm Deletion</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Are you sure you want to delete the course "{courseToDelete?.name}"? This action will also remove all student enrollments for this course and cannot be undone.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseDeleteDialog}>Cancel</Button>
+          <Button onClick={handleDeleteCourse} color="error" autoFocus disabled={loading}>
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Container>
   );
 }
