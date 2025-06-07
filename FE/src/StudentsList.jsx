@@ -23,6 +23,7 @@ import DialogContent from '@mui/material/DialogContent';
 import DialogContentText from '@mui/material/DialogContentText';
 import DialogTitle from '@mui/material/DialogTitle';
 
+import { useLoading } from './contexts/LoadingContext'; // Import useLoading
 import { firestore as db } from './Firebase/config.js';
 import {
   collection,
@@ -37,7 +38,8 @@ import {
 function StudentsList() {
   const [students, setStudents] = useState([]);
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(true);
+  const { isLoadingGlobal, setIsLoadingGlobal } = useLoading(); // Use global loading
+  const [localLoading, setLocalLoading] = useState(true); // For delete operation or finer control
   const [error, setError] = useState(null);
 
   // State for Delete Confirmation Dialog
@@ -45,7 +47,8 @@ function StudentsList() {
   const [studentToDelete, setStudentToDelete] = useState(null);
 
   const fetchStudents = async () => {
-    setLoading(true);
+    setIsLoadingGlobal(true);
+    setLocalLoading(true);
     setError(null);
     try {
       const studentsCollectionRef = collection(db, "students");
@@ -56,7 +59,8 @@ function StudentsList() {
       console.error("Error fetching students from Firestore:", err);
       setError("Failed to load students. Please try again later.");
     } finally {
-      setLoading(false);
+      setLocalLoading(false);
+      setIsLoadingGlobal(false);
     }
   };
 
@@ -84,10 +88,7 @@ function StudentsList() {
 
   const handleDeleteStudent = async () => {
     if (!studentToDelete) return;
-    // Use a more specific loading state for the delete operation if needed,
-    // or reuse the general 'loading' state if acceptable.
-    // For simplicity, we'll reuse 'loading' but ideally, you might have 'isDeleting'.
-    setLoading(true);
+    setLocalLoading(true); // Use local loading for the delete action
     setError(null);
     try {
       const batch = writeBatch(db);
@@ -112,20 +113,12 @@ function StudentsList() {
       console.error("Error deleting student and their enrollments:", err);
       setError("Failed to delete student. Please try again.");
     } finally {
-      setLoading(false);
+      setLocalLoading(false); // Stop local loading for delete
     }
   };
 
-  if (loading && students.length === 0) { // Show full page loader only on initial load
-    return (
-      <Container maxWidth="lg" sx={{ marginTop: 10, textAlign: 'center' }}>
-        <CircularProgress />
-        <Typography sx={{ mt: 2 }}>Loading students...</Typography>
-      </Container>
-    );
-  }
-
-  if (error && students.length === 0) { // Show full page error only if no data could be loaded
+  // If global loading is active, LoadingScreen will be shown by App.jsx
+  if (!isLoadingGlobal && error && students.length === 0) { // Show full page error only if no data could be loaded and not globally loading
     return (
       <Container maxWidth="lg" sx={{ marginTop: 10, textAlign: 'center', color: 'red' }}>
         <Typography>{error}</Typography>
@@ -133,6 +126,10 @@ function StudentsList() {
       </Container>
     );
   }
+
+  // If global loading is active, don't render the main content of this page
+  // The LoadingScreen component will be displayed by App.jsx
+  if (isLoadingGlobal) return null;
 
   return (
     <Container maxWidth="lg" sx={{ marginTop: 10 }}>
@@ -147,7 +144,7 @@ function StudentsList() {
 
       {error && <Typography color="error" sx={{ mb: 2 }}>{error}</Typography>}
 
-      {students.length === 0 && !loading ? (
+      {students.length === 0 && !localLoading && !isLoadingGlobal ? (
         <Typography sx={{ textAlign: 'center', mt: 4 }}>
           No students registered yet. Click "Add New Student" to begin.
         </Typography>
@@ -217,8 +214,8 @@ function StudentsList() {
         </DialogContent>
         <DialogActions>
           <Button onClick={handleCloseDeleteDialog}>Cancel</Button>
-          <Button onClick={handleDeleteStudent} color="error" autoFocus disabled={loading}>
-            {loading ? <CircularProgress size={24} /> : "Delete"}
+          <Button onClick={handleDeleteStudent} color="error" autoFocus disabled={localLoading}>
+            {localLoading ? <CircularProgress size={24} /> : "Delete"}
           </Button>
         </DialogActions>
       </Dialog>

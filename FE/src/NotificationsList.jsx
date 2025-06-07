@@ -15,6 +15,7 @@ import DialogTitle from '@mui/material/DialogTitle';
 import TextField from '@mui/material/TextField';
 
 // Firestore imports
+import { useLoading } from './contexts/LoadingContext'; // Import useLoading
 import { firestore as db } from './Firebase/config.js';
 import { collection, getDocs, doc, updateDoc, orderBy, query as firestoreQuery } from "firebase/firestore";
 
@@ -23,12 +24,12 @@ export default function NotificationsList() {
   const [isReplyDialogOpen, setIsReplyDialogOpen] = useState(false);
   const [replyingToNotification, setReplyingToNotification] = useState(null);
   const [replyMessage, setReplyMessage] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const { isLoadingGlobal, setIsLoadingGlobal } = useLoading(); // Use global loading
+  const [error, setError] = useState(null); // For page-specific errors
 
   useEffect(() => {
     const fetchNotifications = async () => {
-      setLoading(true);
+      setIsLoadingGlobal(true);
       setError(null);
       try {
         const notificationsCollectionRef = collection(db, "notifications");
@@ -41,12 +42,12 @@ export default function NotificationsList() {
         console.error("Error fetching notifications from Firestore:", err);
         setError("Failed to load notifications. Please try again later.");
       } finally {
-        setLoading(false);
+        setIsLoadingGlobal(false);
       }
     };
 
     fetchNotifications();
-  }, []);
+  }, [setIsLoadingGlobal]); // Add setIsLoadingGlobal to dependency array
 
   // --- Reply Dialog Handlers ---
   const handleReplyClick = (notification) => {
@@ -95,20 +96,17 @@ export default function NotificationsList() {
     }
   };
 
+  // If global loading is active, LoadingScreen will be shown by App.jsx
+  if (isLoadingGlobal) return null;
 
   return (
     <Box sx={{ width: '100%', maxWidth: 800, margin: 'auto', padding: 3 }}>
-      {loading && (
-        <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
-          <Typography>Loading notifications...</Typography>
-        </Box>
-      )}
-      {error && (
+      {error && !isLoadingGlobal && notifications.length === 0 && ( // Show error if loading failed and no data
         <Box sx={{ display: 'flex', justifyContent: 'center', my: 4, color: 'red' }}>
           <Typography>{error}</Typography>
         </Box>
       )}
-      {!loading && !error && (
+      {!isLoadingGlobal && ( // Render content if not globally loading
         <>
           <Typography variant="h4" component="h1" gutterBottom>
             Notifications

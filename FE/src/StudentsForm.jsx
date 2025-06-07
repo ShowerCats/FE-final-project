@@ -10,6 +10,7 @@ import Grid from '@mui/material/Grid';
 import Alert from '@mui/material/Alert';
 import CircularProgress from '@mui/material/CircularProgress'; // Import CircularProgress
 import { firestore as db} from './Firebase/config.js';
+import { useLoading } from './contexts/LoadingContext'; // Import useLoading
 import { collection, addDoc, query, where, getDocs, doc, getDoc, updateDoc } from "firebase/firestore";
 
 function StudentsForm() {
@@ -27,8 +28,9 @@ function StudentsForm() {
   const { studentId: routeStudentId } = useParams();
   const isEditMode = !!routeStudentId;
   const [errors, setErrors] = useState({});
-  const [submitError, setSubmitError] = useState('');
-  const [isLoading, setIsLoading] = useState(false); // State for loading indicator
+  const [submitError, setSubmitError] = useState(''); // For form submission errors
+  const { isLoadingGlobal, setIsLoadingGlobal } = useLoading(); // Use global loading
+  const [localLoading, setLocalLoading] = useState(false); // For submit button, distinct from global page load
 
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -47,7 +49,7 @@ function StudentsForm() {
   useEffect(() => {
     const fetchStudentData = async () => {
       if (isEditMode && routeStudentId) {
-        setIsLoading(true); // Set loading to true before fetching
+        setIsLoadingGlobal(true);
         setSubmitError(''); // Clear previous errors
         try {
           const studentDocRef = doc(db, "students", routeStudentId);
@@ -63,12 +65,12 @@ function StudentsForm() {
           console.error("Error fetching student document: ", error);
           setSubmitError("Failed to load student data for editing.");
         } finally {
-          setIsLoading(false); // Set loading to false after fetching (or error)
+          setIsLoadingGlobal(false);
         }
       }
     };
     fetchStudentData();
-  }, [routeStudentId, isEditMode]);
+  }, [routeStudentId, isEditMode, setIsLoadingGlobal]);
 
   const validateForm = () => {
     const newErrors = {};
@@ -141,6 +143,7 @@ function StudentsForm() {
       setSubmitError('Please fix the errors in the form before submitting.');
       return;
     }
+    setLocalLoading(true); // For submit button state
     try {
       if (isEditMode) {
         await updateStudent(routeStudentId, formData);
@@ -153,8 +156,13 @@ function StudentsForm() {
        if (error.message !== 'Duplicate Student ID') {
          setSubmitError('An error occurred while saving data. Please try again.');
        }
+    } finally {
+      setLocalLoading(false); // Reset submit button state
     }
   };
+
+  // If global loading is active (e.g., fetching student data for edit mode), show global loader
+  if (isLoadingGlobal && isEditMode) return null;
 
   return (
     <Container maxWidth="md" sx={{ marginTop: 10, paddingBottom: 4 }}>
@@ -163,21 +171,13 @@ function StudentsForm() {
           {isEditMode ? 'Edit Student' : 'Student Registration Form'}
         </Typography>
 
-        {/* Loading indicator for edit mode */}
-        {isEditMode && isLoading && (
-          <Box sx={{ display: 'flex', justifyContent: 'center', my: 3 }}>
-            <CircularProgress />
-            <Typography sx={{ ml: 2, alignSelf: 'center' }}>Loading student data...</Typography>
-          </Box>
-        )}
-
-        {submitError && !isLoading && <Alert severity="error" sx={{ mb: 2 }}>{submitError}</Alert>}
+        {/* Display submit error if not globally loading */}
+        {submitError && !isLoadingGlobal && <Alert severity="error" sx={{ mb: 2 }}>{submitError}</Alert>}
         
-        {/* Hide form or disable it while loading in edit mode */}
-        {!(isEditMode && isLoading) && (
+        {/* Render form if not in edit mode OR if in edit mode and not globally loading */}
+        {(!isEditMode || (isEditMode && !isLoadingGlobal)) && (
           <form onSubmit={handleSubmit} noValidate>
-            {/* Fieldset can be used to disable all controls within it */}
-            <fieldset disabled={isEditMode && isLoading}>
+            <fieldset disabled={localLoading}> {/* Disable form fields during local submission loading */}
               <Grid container spacing={2}>
                 <Grid item xs={12} sm={6}>
                   <TextField
@@ -283,8 +283,8 @@ function StudentsForm() {
                   />
                 </Grid>
                 <Grid item xs={12}>
-                  <Button type="submit" variant="contained" color="primary" disabled={isEditMode && isLoading}>
-                    {isEditMode ? 'Update Student' : 'Register'}
+                  <Button type="submit" variant="contained" color="primary" disabled={localLoading}>
+                    {localLoading ? <CircularProgress size={24} /> : (isEditMode ? 'Update Student' : 'Register')}
                   </Button>
                 </Grid>
               </Grid>

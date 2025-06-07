@@ -13,13 +13,18 @@ import Grades from './Grades';
 import Courses from './Courses';
 import CourseDetails from './CourseDetails'; // Import CourseDetails
 import Typography from '@mui/material/Typography';
+import { LoadingProvider, useLoading } from './contexts/LoadingContext'; // Import LoadingProvider and useLoading
+import LoadingScreen from './LoadingScreen'; // Import LoadingScreen
 
+import './App.css'; // Import your new CSS file
 
 // Firestore imports
 import { firestore as db } from './Firebase/config.js';
 import { collection, getDocs, writeBatch, doc } from "firebase/firestore"; // Added doc for specific ID setting
 
-function App() {
+// Main App content component to access loading context
+function AppContent() {
+  const { isLoadingGlobal } = useLoading();
 
   React.useEffect(() => {
     const populateInitialData = async () => {
@@ -198,12 +203,16 @@ function App() {
     populateInitialData().catch(error => {
       console.error("Error populating initial data:", error);
     });
-  }, []); // Empty dependency array ensures this runs once on mount
+  }, []);
 
   return (
     <>
+      {isLoadingGlobal && <LoadingScreen />}
       <Header />
-      <Box component="main" sx={{ pt: { xs: 7, sm: 8 }, p: 2 }}>
+      <Box
+        component="main"
+        className="main-content-centered"
+      >
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/Info" element={<Info />} />
@@ -220,6 +229,14 @@ function App() {
         </Routes>
       </Box>
     </>
+  );
+}
+
+function App() {
+  return (
+    <LoadingProvider>
+      <AppContent />
+    </LoadingProvider>
   );
 }
 

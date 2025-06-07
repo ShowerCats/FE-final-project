@@ -17,66 +17,96 @@ import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import SchoolIcon from '@mui/icons-material/School'; // For Courses
 import AssignmentIcon from '@mui/icons-material/Assignment'; // For Grades page link
 
+import { useLoading } from './contexts/LoadingContext'; // Import useLoading
+
 export default function Home() {
   const [recentNotifications, setRecentNotifications] = useState([]);
   const [recentGrades, setRecentGrades] = useState([]);
-  const [loadingNotifications, setLoadingNotifications] = useState(true);
-  const [loadingGrades, setLoadingGrades] = useState(true);
-  const [error, setError] = useState(null);
+  const { isLoadingGlobal, setIsLoadingGlobal } = useLoading(); // Use global loading
 
-  // Simulate fetching data (replace with actual API calls later)
+  // Local loading states for individual sections, if needed for more granular feedback
+  // or if sections might reload independently later.
+  const [loadingSections, setLoadingSections] = useState({ notifications: true, grades: true });
+  const [error, setError] = useState({ notifications: null, grades: null, general: null });
+
   useEffect(() => {
-    // --- Fetch Notifications ---
-    setLoadingNotifications(true);
-    try {
-      const storedNotifications = localStorage.getItem('notifications');
-      if (storedNotifications) {
-        const allNotifications = JSON.parse(storedNotifications);
-        const unread = allNotifications.filter(n => !n.read).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)).slice(0, 3); // Sort by newest first
-        setRecentNotifications(unread);
-      } else {
-        setRecentNotifications([]);
-      }
-    } catch (e) {
-      console.error("Failed to load notifications:", e);
-      setError(prev => ({ ...prev, notifications: 'Could not load notifications.' }));
-    } finally {
-      setLoadingNotifications(false);
-    }
+    const fetchHomePageData = async () => {
+      setIsLoadingGlobal(true);
+      setError({ notifications: null, grades: null, general: null }); // Reset errors
+      setLoadingSections({ notifications: true, grades: true }); // Reset section loading
 
-    // --- Fetch Grades ---
-    setLoadingGrades(true);
-    try {
-      // Using mock grades for now
-      const mockGradesFromStorage = [
-          { id: 1, course: 'Intro to Programming', assignment: 'Midterm Exam', grade: 'A-', date: '2024-05-10' },
-          { id: 2, course: 'Calculus I', assignment: 'Homework 5', grade: 'B+', date: '2024-05-12' },
-          { id: 3, course: 'Intro to Programming', assignment: 'Assignment 3', grade: 'A', date: '2024-05-01' },
-          { id: 4, course: 'Linear Algebra', assignment: 'Quiz 2', grade: 'C', date: '2024-04-28' },
-          { id: 5, course: 'Data Structures', assignment: 'Project 1', grade: 'Pending', date: 'N/A' },
-      ];
-      const recentGradesData = mockGradesFromStorage.sort((a, b) => {
-          const dateA = new Date(a.date);
-          const dateB = new Date(b.date);
-          if (isNaN(dateA) && isNaN(dateB)) return 0;
-          if (isNaN(dateA)) return 1;
-          if (isNaN(dateB)) return -1;
-          return dateB - dateA;
-      }).slice(0, 3);
-      setRecentGrades(recentGradesData);
-    } catch (e) {
-      console.error("Failed to load grades:", e);
-      setError(prev => ({ ...prev, grades: 'Could not load recent grades.' }));
-    } finally {
-      setLoadingGrades(false);
-    }
-  }, []);
+      try {
+        // --- Fetch Notifications ---
+        try {
+          const storedNotifications = localStorage.getItem('notifications');
+          if (storedNotifications) {
+            const allNotifications = JSON.parse(storedNotifications);
+            const unread = allNotifications.filter(n => !n.read).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)).slice(0, 3);
+            setRecentNotifications(unread);
+          } else {
+            setRecentNotifications([]);
+          }
+        } catch (e) {
+          console.error("Failed to load notifications:", e);
+          setError(prev => ({ ...prev, notifications: 'Could not load notifications.' }));
+        } finally {
+          setLoadingSections(prev => ({ ...prev, notifications: false }));
+        }
+
+        // --- Fetch Grades ---
+        try {
+          const mockGradesFromStorage = [
+            { id: 1, course: 'Intro to Programming', assignment: 'Midterm Exam', grade: 'A-', date: '2024-05-10' },
+            { id: 2, course: 'Calculus I', assignment: 'Homework 5', grade: 'B+', date: '2024-05-12' },
+            { id: 3, course: 'Intro to Programming', assignment: 'Assignment 3', grade: 'A', date: '2024-05-01' },
+            { id: 4, course: 'Linear Algebra', assignment: 'Quiz 2', grade: 'C', date: '2024-04-28' },
+            { id: 5, course: 'Data Structures', assignment: 'Project 1', grade: 'Pending', date: 'N/A' },
+          ];
+          const recentGradesData = mockGradesFromStorage.sort((a, b) => {
+            const dateA = new Date(a.date);
+            const dateB = new Date(b.date);
+            if (isNaN(dateA) && isNaN(dateB)) return 0;
+            if (isNaN(dateA)) return 1; // Sort NaNs to the end
+            if (isNaN(dateB)) return -1; // Sort NaNs to the end
+            return dateB - dateA; // Sort by most recent date first
+          }).slice(0, 3);
+          setRecentGrades(recentGradesData);
+        } catch (e) {
+          console.error("Failed to load grades:", e);
+          setError(prev => ({ ...prev, grades: 'Could not load recent grades.' }));
+        } finally {
+          setLoadingSections(prev => ({ ...prev, grades: false }));
+        }
+
+      } catch (e) {
+        // This catch block is for errors during the setup of the try-catch blocks themselves,
+        // or if an error isn't caught by the inner try-catch blocks.
+        console.error("General error fetching home page data:", e);
+        setError(prev => ({ ...prev, general: 'Could not load dashboard data.' }));
+      } finally {
+        setIsLoadingGlobal(false); // Turn off global loader once all attempts are made
+      }
+    };
+
+    fetchHomePageData();
+  }, [setIsLoadingGlobal]); // Dependency array includes setIsLoadingGlobal
+
+  // If global loading is active, LoadingScreen will be shown by App.jsx
+  if (isLoadingGlobal) {
+    return null; // Render nothing from this component, LoadingScreen in App.jsx will be visible
+  }
 
   return (
-    <Box sx={{ flexGrow: 1, p: 3 }}>
-      <Typography variant="h4" gutterBottom component="h1" sx={{ mb: 4 }}>
+    <Box sx={{
+        p: 3, // Page-specific padding
+        width: '100%',
+        maxWidth: '1200px', // Sets a max-width for the Home page content area
+      }}>
+      <Typography variant="h4" gutterBottom component="h1" sx={{ mb: 4, textAlign: 'center' }}>
         Welcome Back!
       </Typography>
+
+      {error.general && <Typography color="error" sx={{ mb: 2, textAlign: 'center' }}>{error.general}</Typography>}
 
       <Grid container spacing={3}>
         {/* Quick Links Section */}
@@ -90,10 +120,10 @@ export default function Home() {
             <Button component={RouterLink} to="/grades" variant="outlined" startIcon={<AssignmentIcon />} fullWidth sx={{ mb: 1 }}>
               My Grades
             </Button>
-            <Button component={RouterLink} to="/schedule" variant="outlined" startIcon={<EventIcon />} fullWidth sx={{ mb: 1 }} disabled> {/* Keep disabled for now */}
+            <Button component={RouterLink} to="/schedule" variant="outlined" startIcon={<EventIcon />} fullWidth sx={{ mb: 1 }} disabled>
               My Schedule
             </Button>
-            <Button component={RouterLink} to="/profile" variant="outlined" startIcon={<AccountCircleIcon />} fullWidth disabled> {/* Keep disabled for now */}
+            <Button component={RouterLink} to="/profile" variant="outlined" startIcon={<AccountCircleIcon />} fullWidth disabled>
               My Profile
             </Button>
           </Paper>
@@ -104,8 +134,8 @@ export default function Home() {
           <Paper sx={{ p: 2, display: 'flex', flexDirection: 'column', height: '100%' }}>
             <Typography variant="h6" gutterBottom>Recent Notifications</Typography>
             <Divider sx={{ mb: 1 }} />
-            {loadingNotifications ? <Typography>Loading...</Typography> :
-             error?.notifications ? <Typography color="error">{error.notifications}</Typography> :
+            {loadingSections.notifications ? <Typography>Loading notifications...</Typography> :
+             error.notifications ? <Typography color="error">{error.notifications}</Typography> :
              recentNotifications.length > 0 ? (
               <List dense sx={{ overflow: 'auto', maxHeight: 250 }}>
                 {recentNotifications.map((notif) => (
@@ -125,8 +155,8 @@ export default function Home() {
           <Paper sx={{ p: 2, display: 'flex', flexDirection: 'column', height: '100%' }}>
             <Typography variant="h6" gutterBottom>Recent Grades</Typography>
             <Divider sx={{ mb: 1 }} />
-            {loadingGrades ? <Typography>Loading...</Typography> :
-             error?.grades ? <Typography color="error">{error.grades}</Typography> :
+            {loadingSections.grades ? <Typography>Loading grades...</Typography> :
+             error.grades ? <Typography color="error">{error.grades}</Typography> :
              recentGrades.length > 0 ? (
               <List dense sx={{ overflow: 'auto', maxHeight: 250 }}>
                 {recentGrades.map((grade) => (
@@ -140,7 +170,6 @@ export default function Home() {
             <Button component={RouterLink} to="/grades" size="small" sx={{ mt: 'auto', alignSelf: 'flex-end' }}>View All Grades</Button>
           </Paper>
         </Grid>
-
       </Grid>
     </Box>
   );

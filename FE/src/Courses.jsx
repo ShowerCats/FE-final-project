@@ -40,11 +40,14 @@ import MenuItem from '@mui/material/MenuItem';
 import FormControl from '@mui/material/FormControl';
 import InputLabel from '@mui/material/InputLabel';
 
+import { useLoading } from './contexts/LoadingContext'; // Import useLoading
+
 export default function Courses() {
   const [courses, setCourses] = useState([]);
   const [professors, setProfessors] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const { isLoadingGlobal, setIsLoadingGlobal } = useLoading(); // Use global loading
+  const [error, setError] = useState(null); // For page-specific errors
+  const [localLoading, setLocalLoading] = useState(false); // For form submissions/deletions
 
   // State for Add/Edit Course Modal
   const [openFormDialog, setOpenFormDialog] = useState(false);
@@ -63,7 +66,7 @@ export default function Courses() {
   const navigate = useNavigate(); // Initialize useNavigate
 
   const fetchAllData = async () => {
-    setLoading(true);
+    setIsLoadingGlobal(true);
     setError(null);
     try {
       // 1. Fetch all professors
@@ -99,13 +102,13 @@ export default function Courses() {
       console.error("Error fetching data:", err);
       setError("Failed to load data. Please try again later.");
     } finally {
-      setLoading(false);
+      setIsLoadingGlobal(false);
     }
   };
 
   useEffect(() => {
     fetchAllData();
-  }, []); // Empty dependency array means this effect runs once on mount
+  }, [setIsLoadingGlobal]); // Add setIsLoadingGlobal to dependency array
 
   // CRUD Handlers
   const handleOpenAddDialog = () => {
@@ -134,7 +137,7 @@ export default function Courses() {
       setError("Course Name, Professor, and Credits are required.");
       return;
     }
-    setLoading(true);
+    setLocalLoading(true); // Use local loading for form submission
     try {
       const courseData = {
         name: currentCourse.name,
@@ -156,7 +159,7 @@ export default function Courses() {
       console.error("Error saving course:", err);
       setError(`Failed to ${isEditing ? 'update' : 'add'} course. Please try again.`);
     } finally {
-      setLoading(false);
+      setLocalLoading(false);
     }
   };
 
@@ -172,7 +175,7 @@ export default function Courses() {
 
   const handleDeleteCourse = async () => {
     if (!courseToDelete) return;
-    setLoading(true);
+    setLocalLoading(true); // Use local loading for delete operation
     try {
       const batch = writeBatch(db);
       const courseRef = doc(db, "courses", courseToDelete.id);
@@ -193,7 +196,7 @@ export default function Courses() {
       console.error("Error deleting course:", err);
       setError("Failed to delete course. Please try again.");
     } finally {
-      setLoading(false);
+      setLocalLoading(false);
     }
   };
 
@@ -201,20 +204,14 @@ export default function Courses() {
     navigate(`/courses/${courseId}`);
   };
 
+  // If global loading is active, LoadingScreen will be shown by App.jsx
+  if (isLoadingGlobal) return null;
 
-  if (loading && courses.length === 0) {
+  // Show error message if there's an error and not globally loading, and no courses are loaded
+  if (error && !isLoadingGlobal && courses.length === 0) {
     return (
       <Container maxWidth="md" sx={{ textAlign: 'center', py: 5 }}>
-        <CircularProgress />
-        <Typography variant="h6" sx={{ mt: 2 }}>Loading courses...</Typography>
-      </Container>
-    );
-  }
-
-  if (error && !(loading && courses.length > 0)) {
-    return (
-      <Container maxWidth="md" sx={{ textAlign: 'center', py: 5 }}>
-        <Typography variant="h6" color="error">{error}</Typography>
+        <Typography variant="h6" color="error" gutterBottom>{error}</Typography>
         <Button onClick={fetchAllData} variant="outlined" sx={{ mt: 2 }}>Try Again</Button>
       </Container>
     );
@@ -238,7 +235,7 @@ export default function Courses() {
 
         {error && <Typography color="error" sx={{ mb: 2 }}>{error}</Typography>}
 
-        {courses.length === 0 && !loading ? (
+        {courses.length === 0 && !isLoadingGlobal && !localLoading ? (
           <Typography>No courses found. Add a new one to get started!</Typography>
         ) : (
           <Paper elevation={3}>
@@ -359,8 +356,8 @@ export default function Courses() {
         </DialogContent>
         <DialogActions>
           <Button onClick={handleCloseFormDialog}>Cancel</Button>
-          <Button onClick={handleFormSubmit} variant="contained" disabled={loading}>
-            {isEditing ? 'Save Changes' : 'Add Course'}
+          <Button onClick={handleFormSubmit} variant="contained" disabled={localLoading}>
+            {localLoading ? <CircularProgress size={24} /> : (isEditing ? 'Save Changes' : 'Add Course')}
           </Button>
         </DialogActions>
       </Dialog>
@@ -375,8 +372,8 @@ export default function Courses() {
         </DialogContent>
         <DialogActions>
           <Button onClick={handleCloseDeleteDialog}>Cancel</Button>
-          <Button onClick={handleDeleteCourse} color="error" autoFocus disabled={loading}>
-            Delete
+          <Button onClick={handleDeleteCourse} color="error" autoFocus disabled={localLoading}>
+            {localLoading ? <CircularProgress size={24} /> : "Delete"}
           </Button>
         </DialogActions>
       </Dialog>

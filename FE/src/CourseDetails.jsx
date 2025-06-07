@@ -10,6 +10,9 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import { firestore as db } from './Firebase/config.js';
 import {
+  useLoading
+} from './contexts/LoadingContext'; // Import useLoading
+import {
   doc, getDoc, collection, query, where, getDocs, addDoc, documentId
 } from "firebase/firestore";
 
@@ -20,16 +23,15 @@ export default function CourseDetails() {
   const [professor, setProfessor] = useState(null);
   const [enrolledStudents, setEnrolledStudents] = useState([]);
   const [allStudents, setAllStudents] = useState([]); // For the "add student" dropdown
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const { isLoadingGlobal, setIsLoadingGlobal } = useLoading(); // Use global loading
+  const [error, setError] = useState(null); // For page-specific errors
 
   const [openAddStudentDialog, setOpenAddStudentDialog] = useState(false);
   const [selectedStudentId, setSelectedStudentId] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const fetchCourseData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+    setIsLoadingGlobal(true);
     try {
       // 1. Fetch Course Details
       const courseRef = doc(db, "courses", courseId);
@@ -37,7 +39,7 @@ export default function CourseDetails() {
 
       if (!courseSnap.exists()) {
         setError("Course not found.");
-        setLoading(false);
+        setIsLoadingGlobal(false);
         return;
       }
       const courseData = { id: courseSnap.id, ...courseSnap.data() };
@@ -74,13 +76,13 @@ export default function CourseDetails() {
       console.error("Error fetching course details:", err);
       setError("Failed to load course data. Please try again.");
     } finally {
-      setLoading(false);
+      setIsLoadingGlobal(false);
     }
-  }, [courseId]);
+  }, [courseId, setIsLoadingGlobal]);
 
   useEffect(() => {
     fetchCourseData();
-  }, [fetchCourseData]);
+  }, [fetchCourseData]); // fetchCourseData already includes setIsLoadingGlobal in its deps
 
   const handleOpenAddStudentDialog = () => {
     setSelectedStudentId('');
@@ -121,16 +123,11 @@ export default function CourseDetails() {
     }
   };
 
-  if (loading) {
-    return (
-      <Container maxWidth="md" sx={{ textAlign: 'center', py: 5 }}>
-        <CircularProgress />
-        <Typography variant="h6" sx={{ mt: 2 }}>Loading course details...</Typography>
-      </Container>
-    );
-  }
+  // If global loading is active, LoadingScreen will be shown by App.jsx
+  if (isLoadingGlobal) return null;
 
-  if (error && !course) { // Show fatal error if course couldn't be loaded at all
+  // Show fatal error if course couldn't be loaded at all and not globally loading
+  if (error && !course && !isLoadingGlobal) {
     return (
       <Container maxWidth="md" sx={{ textAlign: 'center', py: 5 }}>
         <Typography variant="h5" color="error" gutterBottom>{error}</Typography>
