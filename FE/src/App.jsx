@@ -1,5 +1,5 @@
 import React from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, useLocation } from 'react-router-dom';
 import Home from './Home';
 import Info from './Info';
 import Help from './Help';
@@ -11,12 +11,14 @@ import About from './About';
 import NotificationsList from './NotificationsList';
 import Grades from './Grades';
 import Courses from './Courses';
+import Profile from './Profile';
+import Schedule from './Schedule'; // Import the new Schedule page
 import CourseDetails from './CourseDetails'; // Import CourseDetails
 import Typography from '@mui/material/Typography';
-import { LoadingProvider, useLoading } from './contexts/LoadingContext'; // Import LoadingProvider and useLoading
+import { LoadingProvider, useLoading } from './contexts/LoadingContext.jsx';
 import LoadingScreen from './LoadingScreen'; // Import LoadingScreen
 
-import './App.css'; // Import your new CSS file
+import './App.css';
 
 // Firestore imports
 import { firestore as db } from './Firebase/config.js';
@@ -25,6 +27,32 @@ import { collection, getDocs, writeBatch, doc } from "firebase/firestore"; // Ad
 // Main App content component to access loading context
 function AppContent() {
   const { isLoadingGlobal } = useLoading();
+  const location = useLocation();
+
+  const getPageTitle = (pathname) => {
+    const pathSegments = pathname.split('/').filter(segment => segment);
+
+    if (pathSegments.length === 0) return "HOME";
+
+    const mainPath = pathSegments[0].toLowerCase();
+    switch (mainPath) {
+      case "info": return "INFO";
+      case "help": return "HELP";
+      case "notifications": return "NOTIFICATIONS";
+      case "students":
+        if (pathSegments[1] === "add") return "REGISTER STUDENT";
+        if (pathSegments[1] === "edit") return "EDIT STUDENT";
+        return "STUDENTS";
+      case "courses":
+        if (pathSegments.length > 1 && pathSegments[1] !== 'add') return "COURSE DETAILS";
+        return "COURSES";
+      case "profile": return "PROFILE";
+      case "grades": return "GRADES";
+      case "about": return "ABOUT";
+      case "schedule": return "MY SCHEDULE";
+      default: return pathSegments[0] ? pathSegments[0].toUpperCase() : "DASHBOARD";
+    }
+  };
 
   React.useEffect(() => {
     const populateInitialData = async () => {
@@ -208,7 +236,7 @@ function AppContent() {
   return (
     <>
       {isLoadingGlobal && <LoadingScreen />}
-      <Header />
+      <Header pageTitle={getPageTitle(location.pathname)} />
       <Box
         component="main"
         className="main-content-centered"
@@ -223,7 +251,9 @@ function AppContent() {
           <Route path="/courses" element={<Courses />} />
           <Route path="/courses/:courseId" element={<CourseDetails />} />
           <Route path="/students/edit/:studentId" element={<StudentsForm />} /> {/* For editing */}
+          <Route path="/profile" element={<Profile />} />
           <Route path="/grades" element={<Grades />} />
+          <Route path="/schedule" element={<Schedule />} />
           <Route path="/about" element={<About />} />
           <Route path="*" element={<Typography>Page Not Found</Typography>} />
         </Routes>

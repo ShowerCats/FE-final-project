@@ -23,7 +23,7 @@ import DialogContent from '@mui/material/DialogContent';
 import DialogContentText from '@mui/material/DialogContentText';
 import DialogTitle from '@mui/material/DialogTitle';
 
-import { useLoading } from './contexts/LoadingContext'; // Import useLoading
+import { useLoading } from './contexts/LoadingContext.jsx'; // Import useLoading
 import { firestore as db } from './Firebase/config.js';
 import {
   collection,
@@ -127,14 +127,16 @@ function StudentsList() {
     );
   }
 
-  // If global loading is active, don't render the main content of this page
-  // The LoadingScreen component will be displayed by App.jsx
   if (isLoadingGlobal) return null;
 
   return (
     <Container maxWidth="lg" sx={{ marginTop: 10 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
-        <Typography variant="h4" component="h1">
+      <Box sx={{ display: 'flex', alignItems: 'center', mb: 4 }}>
+        <Typography
+          variant="h4"
+          component="h1"
+          sx={{ flexGrow: 1, textAlign: 'center' }} // Center the title
+        >
           Students List
         </Typography>
         <Button variant="contained" color="primary" onClick={handleAddStudent}>

@@ -40,7 +40,7 @@ import MenuItem from '@mui/material/MenuItem';
 import FormControl from '@mui/material/FormControl';
 import InputLabel from '@mui/material/InputLabel';
 
-import { useLoading } from './contexts/LoadingContext'; // Import useLoading
+import { useLoading } from './contexts/LoadingContext.jsx'; // Import useLoading
 
 export default function Courses() {
   const [courses, setCourses] = useState([]);

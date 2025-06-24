@@ -10,7 +10,7 @@ import Grid from '@mui/material/Grid';
 import Alert from '@mui/material/Alert';
 import CircularProgress from '@mui/material/CircularProgress'; // Import CircularProgress
 import { firestore as db} from './Firebase/config.js';
-import { useLoading } from './contexts/LoadingContext'; // Import useLoading
+import { useLoading } from './contexts/LoadingContext.jsx'; // Import useLoading
 import { collection, addDoc, query, where, getDocs, doc, getDoc, updateDoc } from "firebase/firestore";
 
 function StudentsForm() {
@@ -70,7 +70,18 @@ function StudentsForm() {
       }
     };
     fetchStudentData();
-  }, [routeStudentId, isEditMode, setIsLoadingGlobal]);
+  }, [routeStudentId, isEditMode, setIsLoadingGlobal]); // For edit mode
+
+  useEffect(() => {
+    if (!isEditMode) {
+      setIsLoadingGlobal(true);
+      // Simulate a quick load for the form page if no actual async task
+      const timer = setTimeout(() => {
+        setIsLoadingGlobal(false);
+      }, 150);
+      return () => clearTimeout(timer);
+    }
+  }, [isEditMode, setIsLoadingGlobal]); // For add mode
 
   const validateForm = () => {
     const newErrors = {};
@@ -161,8 +172,8 @@ function StudentsForm() {
     }
   };
 
-  // If global loading is active (e.g., fetching student data for edit mode), show global loader
-  if (isLoadingGlobal && isEditMode) return null;
+  // If global loading is active, show global loader
+  if (isLoadingGlobal) return null;
 
   return (
     <Container maxWidth="md" sx={{ marginTop: 10, paddingBottom: 4 }}>

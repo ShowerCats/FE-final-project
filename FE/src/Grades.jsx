@@ -1,5 +1,5 @@
 // src/Grades.jsx
-import React from 'react'; // Keep React import
+import React, { useState, useEffect } from 'react'; // Keep React import
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Paper from '@mui/material/Paper';
@@ -10,6 +10,7 @@ import TableContainer from '@mui/material/TableContainer';
 import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
 import { styled } from '@mui/material/styles'; // For custom styling
+import { useLoading } from './contexts/LoadingContext.jsx';
 
 // Mock data for grades (replace with actual data fetching later)
 const mockGrades = [
@@ -33,9 +34,24 @@ const StyledTableRow = styled(TableRow)(({ theme }) => ({
 
 // Changed function name to match the filename export
 export default function Grades() {
-  // In a real app, you would fetch grades using useEffect, possibly based on the logged-in user's ID
-  // For now, we'll use the mock data
-  const grades = mockGrades;
+  const { isLoadingGlobal, setIsLoadingGlobal } = useLoading();
+  const [grades, setGrades] = useState([]);
+
+  useEffect(() => {
+    setIsLoadingGlobal(true);
+    // Simulate fetching grades
+    const timer = setTimeout(() => {
+      setGrades(mockGrades); // In a real app, fetch from backend
+      setIsLoadingGlobal(false);
+    }, 150);
+
+    return () => clearTimeout(timer); // Cleanup timer
+  }, [setIsLoadingGlobal]);
+
+  if (isLoadingGlobal) {
+    return null; 
+  }
+
 
   return (
     <Box sx={{ width: '100%', maxWidth: 1000, margin: 'auto', padding: 3 }}>

@@ -10,8 +10,8 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import { firestore as db } from './Firebase/config.js';
 import {
-  useLoading
-} from './contexts/LoadingContext'; // Import useLoading
+  useLoading // Import useLoading
+} from './contexts/LoadingContext.jsx';
 import {
   doc, getDoc, collection, query, where, getDocs, addDoc, documentId
 } from "firebase/firestore";

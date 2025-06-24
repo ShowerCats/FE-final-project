@@ -17,7 +17,7 @@ import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import SchoolIcon from '@mui/icons-material/School'; // For Courses
 import AssignmentIcon from '@mui/icons-material/Assignment'; // For Grades page link
 
-import { useLoading } from './contexts/LoadingContext'; // Import useLoading
+import { useLoading } from './contexts/LoadingContext.jsx'; // Import useLoading
 
 export default function Home() {
   const [recentNotifications, setRecentNotifications] = useState([]);
@@ -34,6 +34,8 @@ export default function Home() {
       setIsLoadingGlobal(true);
       setError({ notifications: null, grades: null, general: null }); // Reset errors
       setLoadingSections({ notifications: true, grades: true }); // Reset section loading
+
+      await new Promise(resolve => setTimeout(resolve, 150)); // Changed to 100ms delay
 
       try {
         // --- Fetch Notifications ---
@@ -120,10 +122,10 @@ export default function Home() {
             <Button component={RouterLink} to="/grades" variant="outlined" startIcon={<AssignmentIcon />} fullWidth sx={{ mb: 1 }}>
               My Grades
             </Button>
-            <Button component={RouterLink} to="/schedule" variant="outlined" startIcon={<EventIcon />} fullWidth sx={{ mb: 1 }} disabled>
+            <Button component={RouterLink} to="/schedule" variant="outlined" startIcon={<EventIcon />} fullWidth sx={{ mb: 1 }}>
               My Schedule
             </Button>
-            <Button component={RouterLink} to="/profile" variant="outlined" startIcon={<AccountCircleIcon />} fullWidth disabled>
+            <Button component={RouterLink} to="/profile" variant="outlined" startIcon={<AccountCircleIcon />} fullWidth>
               My Profile
             </Button>
           </Paper>

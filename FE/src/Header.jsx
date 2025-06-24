@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+ import React, { useState } from 'react';
 import MenuIcon from "@mui/icons-material/Menu";
 import IconButton from "@mui/material/IconButton";
 import Drawer from "@mui/material/Drawer";
@@ -7,10 +7,14 @@ import ListItemButton from "@mui/material/ListItemButton";
 import ListItemText from "@mui/material/ListItemText";
 import AppBar from "@mui/material/AppBar";
 import Toolbar from "@mui/material/Toolbar";
+import Typography from "@mui/material/Typography";
 import { useNavigate } from "react-router-dom";
+import Button from "@mui/material/Button";
+import AccountCircleIcon from '@mui/icons-material/AccountCircle';
+import HomeIcon from '@mui/icons-material/Home'; // Import HomeIcon
 import Box from '@mui/material/Box';
 
-export default function Header() {
+export default function Header({ pageTitle }) {
     const navigate = useNavigate();
     const handleNavigation = (url) => {
         navigate(url);
@@ -42,6 +46,44 @@ export default function Header() {
                     style={{ cursor: 'pointer', height: '40px' }}
                     alt="College Logo - Go to Home"
                 />
+                <Typography
+                    variant="h6"
+                    component="div"
+                    sx={{
+                        flexGrow: 1,
+                        textAlign: 'center',
+                        color: '#2c3e50',
+                        fontFamily: '"Helvetica Neue", Arial, sans-serif',
+                        fontWeight: 600,
+                        mx: 2,
+                    }}
+                >
+                    {pageTitle || "ACADEMIC PORTAL"}
+                </Typography>
+
+                <Button
+                    color="inherit"
+                    onClick={() => handleNavigation("/")}
+                    startIcon={<HomeIcon />}
+                    sx={{ color: '#2c3e50', mr: 1 }}
+                >
+                    Home
+                </Button>
+                <Button
+                    color="inherit"
+                    onClick={() => handleNavigation("/profile")}
+                    startIcon={<AccountCircleIcon />}
+                    sx={{ color: '#2c3e50', mr: 1 }}
+                >
+                    My Profile
+                </Button>
+                <Button
+                    color="inherit"
+                    onClick={() => console.log("Logout clicked")}
+                    sx={{ color: '#2c3e50' }}
+                >
+                    Logout
+                </Button>
                 <Drawer anchor="left" open={open} onClose={toggleDrawer}>
                     <Box
                         sx={{ width: 250 }}
@@ -59,16 +101,17 @@ export default function Header() {
                             <ListItemButton onClick={() => handleNavigation("/students/add")}>
                                 <ListItemText primary="Register Student" />
                             </ListItemButton>
-                            {/* Add Courses Link Here */}
                             <ListItemButton onClick={() => handleNavigation("/courses")}>
                                 <ListItemText primary="Courses" />
                             </ListItemButton>
-                            {/* End Add Courses Link */}
                             <ListItemButton onClick={() => handleNavigation("/Notifications")}>
                                 <ListItemText primary="Notifications" />
                             </ListItemButton>
                             <ListItemButton onClick={() => handleNavigation("/Grades")}>
                                 <ListItemText primary="Grades" />
+                            </ListItemButton>
+                            <ListItemButton onClick={() => handleNavigation("/schedule")}>
+                                <ListItemText primary="My Schedule" />
                             </ListItemButton>
                             <ListItemButton onClick={() => handleNavigation("/Help")}>
                                 <ListItemText primary="Help" />

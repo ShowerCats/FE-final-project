@@ -15,7 +15,7 @@ import DialogTitle from '@mui/material/DialogTitle';
 import TextField from '@mui/material/TextField';
 
 // Firestore imports
-import { useLoading } from './contexts/LoadingContext'; // Import useLoading
+import { useLoading } from './contexts/LoadingContext.jsx'; // Import useLoading
 import { firestore as db } from './Firebase/config.js';
 import { collection, getDocs, doc, updateDoc, orderBy, query as firestoreQuery } from "firebase/firestore";
 
