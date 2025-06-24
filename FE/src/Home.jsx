@@ -14,95 +14,90 @@ import NotificationsIcon from '@mui/icons-material/Notifications';
 import GradeIcon from '@mui/icons-material/Grade';
 import EventIcon from '@mui/icons-material/Event';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
-import SchoolIcon from '@mui/icons-material/School'; // For Courses
-import AssignmentIcon from '@mui/icons-material/Assignment'; // For Grades page link
+import SchoolIcon from '@mui/icons-material/School';
+import AssignmentIcon from '@mui/icons-material/Assignment';
 
-import { useLoading } from './contexts/LoadingContext.jsx'; // Import useLoading
+import { useLoading } from './contexts/LoadingContext.jsx';
+import { firestore as db } from './Firebase/config.js';
+import { collection, query, where, orderBy, limit, getDocs } from "firebase/firestore";
 
 export default function Home() {
   const [recentNotifications, setRecentNotifications] = useState([]);
   const [recentGrades, setRecentGrades] = useState([]);
-  const { isLoadingGlobal, setIsLoadingGlobal } = useLoading(); // Use global loading
+  const { isLoadingGlobal, setIsLoadingGlobal } = useLoading();
 
-  // Local loading states for individual sections, if needed for more granular feedback
-  // or if sections might reload independently later.
   const [loadingSections, setLoadingSections] = useState({ notifications: true, grades: true });
   const [error, setError] = useState({ notifications: null, grades: null, general: null });
 
   useEffect(() => {
     const fetchHomePageData = async () => {
       setIsLoadingGlobal(true);
-      setError({ notifications: null, grades: null, general: null }); // Reset errors
-      setLoadingSections({ notifications: true, grades: true }); // Reset section loading
-
-      await new Promise(resolve => setTimeout(resolve, 150)); // Changed to 100ms delay
+      setError({ notifications: null, grades: null, general: null });
+      setLoadingSections({ notifications: true, grades: true });
 
       try {
-        // --- Fetch Notifications ---
-        try {
-          const storedNotifications = localStorage.getItem('notifications');
-          if (storedNotifications) {
-            const allNotifications = JSON.parse(storedNotifications);
-            const unread = allNotifications.filter(n => !n.read).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)).slice(0, 3);
-            setRecentNotifications(unread);
-          } else {
-            setRecentNotifications([]);
-          }
-        } catch (e) {
-          console.error("Failed to load notifications:", e);
+        // --- Define Firestore queries ---
+        const notificationsQuery = query(
+          collection(db, "notifications"),
+          orderBy("timestamp", "desc"),
+          limit(3)
+        );
+        const notificationsPromise = getDocs(notificationsQuery);
+
+        // This query now filters out 'Pending' grades and will require a composite index.
+        const gradesQuery = query(
+          collection(db, "grades"),
+          where("grade", "!=", "Pending"),
+          orderBy("date", "desc"),
+          limit(3)
+        );
+        const gradesPromise = getDocs(gradesQuery);
+
+        // --- Fetch data in parallel ---
+        const results = await Promise.allSettled([notificationsPromise, gradesPromise]);
+
+        // Process notifications result
+        if (results[0].status === 'fulfilled') {
+          const notificationsData = results[0].value.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          setRecentNotifications(notificationsData);
+        } else {
+          // Log the specific Firestore error to the console.
+          // This will often contain a link to create a required index.
+          console.error("Firestore Error - Failed to load notifications:", results[0].reason);
           setError(prev => ({ ...prev, notifications: 'Could not load notifications.' }));
-        } finally {
-          setLoadingSections(prev => ({ ...prev, notifications: false }));
         }
 
-        // --- Fetch Grades ---
-        try {
-          const mockGradesFromStorage = [
-            { id: 1, course: 'Intro to Programming', assignment: 'Midterm Exam', grade: 'A-', date: '2024-05-10' },
-            { id: 2, course: 'Calculus I', assignment: 'Homework 5', grade: 'B+', date: '2024-05-12' },
-            { id: 3, course: 'Intro to Programming', assignment: 'Assignment 3', grade: 'A', date: '2024-05-01' },
-            { id: 4, course: 'Linear Algebra', assignment: 'Quiz 2', grade: 'C', date: '2024-04-28' },
-            { id: 5, course: 'Data Structures', assignment: 'Project 1', grade: 'Pending', date: 'N/A' },
-          ];
-          const recentGradesData = mockGradesFromStorage.sort((a, b) => {
-            const dateA = new Date(a.date);
-            const dateB = new Date(b.date);
-            if (isNaN(dateA) && isNaN(dateB)) return 0;
-            if (isNaN(dateA)) return 1; // Sort NaNs to the end
-            if (isNaN(dateB)) return -1; // Sort NaNs to the end
-            return dateB - dateA; // Sort by most recent date first
-          }).slice(0, 3);
-          setRecentGrades(recentGradesData);
-        } catch (e) {
-          console.error("Failed to load grades:", e);
+        // Process grades result
+        if (results[1].status === 'fulfilled') {
+          const gradesData = results[1].value.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          setRecentGrades(gradesData);
+        } else {
+          // Log the specific Firestore error for grades.
+          console.error("Firestore Error - Failed to load grades:", results[1].reason);
           setError(prev => ({ ...prev, grades: 'Could not load recent grades.' }));
-        } finally {
-          setLoadingSections(prev => ({ ...prev, grades: false }));
         }
 
       } catch (e) {
-        // This catch block is for errors during the setup of the try-catch blocks themselves,
-        // or if an error isn't caught by the inner try-catch blocks.
         console.error("General error fetching home page data:", e);
         setError(prev => ({ ...prev, general: 'Could not load dashboard data.' }));
       } finally {
-        setIsLoadingGlobal(false); // Turn off global loader once all attempts are made
+        setLoadingSections({ notifications: false, grades: false });
+        setIsLoadingGlobal(false);
       }
     };
 
     fetchHomePageData();
-  }, [setIsLoadingGlobal]); // Dependency array includes setIsLoadingGlobal
+  }, [setIsLoadingGlobal]);
 
-  // If global loading is active, LoadingScreen will be shown by App.jsx
   if (isLoadingGlobal) {
-    return null; // Render nothing from this component, LoadingScreen in App.jsx will be visible
+    return null;
   }
 
   return (
     <Box sx={{
-        p: 3, // Page-specific padding
+        p: 3,
         width: '100%',
-        maxWidth: '1200px', // Sets a max-width for the Home page content area
+        maxWidth: '1200px',
       }}>
       <Typography variant="h4" gutterBottom component="h1" sx={{ mb: 4, textAlign: 'center' }}>
         Welcome Back!
@@ -147,7 +142,7 @@ export default function Home() {
                   </ListItem>
                 ))}
               </List>
-            ) : <Typography variant="body2">No unread notifications.</Typography>}
+            ) : <Typography variant="body2">No recent notifications.</Typography>}
             <Button component={RouterLink} to="/notifications" size="small" sx={{ mt: 'auto', alignSelf: 'flex-end' }}>View All</Button>
           </Paper>
         </Grid>

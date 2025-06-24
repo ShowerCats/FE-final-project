@@ -1,4 +1,3 @@
-// c:\Users\Ori\Downloads\FE Project\FE-final-project\FE\src\NotificationsList.jsx
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import Box from '@mui/material/Box';
@@ -13,19 +12,26 @@ import DialogContent from '@mui/material/DialogContent';
 import DialogContentText from '@mui/material/DialogContentText';
 import DialogTitle from '@mui/material/DialogTitle';
 import TextField from '@mui/material/TextField';
+import Alert from '@mui/material/Alert';
+import CircularProgress from '@mui/material/CircularProgress';
+import IconButton from '@mui/material/IconButton';
+import DeleteIcon from '@mui/icons-material/Delete';
 
 // Firestore imports
-import { useLoading } from './contexts/LoadingContext.jsx'; // Import useLoading
+import { useLoading } from './contexts/LoadingContext.jsx';
 import { firestore as db } from './Firebase/config.js';
-import { collection, getDocs, doc, updateDoc, orderBy, query as firestoreQuery } from "firebase/firestore";
+import { collection, getDocs, doc, updateDoc, addDoc, deleteDoc, orderBy, query as firestoreQuery } from "firebase/firestore";
 
 export default function NotificationsList() {
   const [notifications, setNotifications] = useState([]);
   const [isReplyDialogOpen, setIsReplyDialogOpen] = useState(false);
   const [replyingToNotification, setReplyingToNotification] = useState(null);
   const [replyMessage, setReplyMessage] = useState('');
-  const { isLoadingGlobal, setIsLoadingGlobal } = useLoading(); // Use global loading
-  const [error, setError] = useState(null); // For page-specific errors
+  const [isActionLoading, setIsActionLoading] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [notificationToDelete, setNotificationToDelete] = useState(null);
+  const { isLoadingGlobal, setIsLoadingGlobal } = useLoading();
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     const fetchNotifications = async () => {
@@ -33,7 +39,6 @@ export default function NotificationsList() {
       setError(null);
       try {
         const notificationsCollectionRef = collection(db, "notifications");
-        // Optionally, order by timestamp descending
         const q = firestoreQuery(notificationsCollectionRef, orderBy("timestamp", "desc"));
         const querySnapshot = await getDocs(q);
         const notificationsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -47,13 +52,13 @@ export default function NotificationsList() {
     };
 
     fetchNotifications();
-  }, [setIsLoadingGlobal]); // Add setIsLoadingGlobal to dependency array
+  }, [setIsLoadingGlobal]);
 
-  // --- Reply Dialog Handlers ---
   const handleReplyClick = (notification) => {
     setReplyingToNotification(notification);
     setIsReplyDialogOpen(true);
     setReplyMessage('');
+    setError(null); // Clear previous errors when opening dialog
   };
 
   const handleCloseReplyDialog = () => {
@@ -61,119 +66,163 @@ export default function NotificationsList() {
     setReplyingToNotification(null);
   };
 
-  const handleSendReply = () => {
+  const handleSendReply = async () => {
     if (!replyMessage.trim()) {
-        alert("Reply message cannot be empty.");
-        return;
+      setError("Reply message cannot be empty.");
+      return;
     }
-    console.log(`Sending reply to: ${replyingToNotification?.sender}`);
-    console.log(`Original Notification ID: ${replyingToNotification?.id}`);
-    console.log(`Reply Message: ${replyMessage}`);
-    alert(`Reply to ${replyingToNotification?.sender} sent (simulated):\n"${replyMessage}"`);
-    // --- End Placeholder ---
+    setIsActionLoading(true);
+    setError(null);
 
-    handleCloseReplyDialog();
+    try {
+      // This creates a new notification, as if the portal user is replying.
+      const newNotification = {
+        sender: 'Student Portal User', // Placeholder for the current user
+        message: `Reply to "${replyingToNotification.sender}": ${replyMessage}`,
+        timestamp: new Date().toISOString(),
+        read: false,
+        type: 'message',
+      };
+
+      await addDoc(collection(db, "notifications"), newNotification);
+      handleCloseReplyDialog();
+    } catch (err) {
+      console.error("Error sending reply:", err);
+      setError("Failed to send reply. Please try again.");
+    } finally {
+      setIsActionLoading(false);
+    }
   };
-  // --- End Reply Dialog Handlers ---
-
 
   const handleMarkAsRead = async (notificationId) => {
+    const originalNotifications = [...notifications];
+    setNotifications(prevNotifications =>
+      prevNotifications.map(notif =>
+        notif.id === notificationId ? { ...notif, read: true } : notif
+      )
+    );
+
     try {
       const notificationDocRef = doc(db, "notifications", notificationId);
-      await updateDoc(notificationDocRef, {
-        read: true
-      });
-      // Update local state to reflect the change immediately
-      setNotifications(prevNotifications =>
-        prevNotifications.map(notif =>
-          notif.id === notificationId ? { ...notif, read: true } : notif
-        )
-      );
-      console.log(`Marked notification ${notificationId} as read in Firestore.`);
+      await updateDoc(notificationDocRef, { read: true });
     } catch (err) {
       console.error("Error marking notification as read:", err);
-      alert("Failed to mark notification as read. Please try again.");
+      setError("Failed to update notification. Please try again.");
+      setNotifications(originalNotifications);
     }
   };
 
-  // If global loading is active, LoadingScreen will be shown by App.jsx
+  const handleOpenDeleteDialog = (notification) => {
+    setNotificationToDelete(notification);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const handleCloseDeleteDialog = () => {
+    setIsDeleteDialogOpen(false);
+    setNotificationToDelete(null);
+  };
+
+  const handleDeleteNotification = async () => {
+    if (!notificationToDelete) return;
+
+    setIsActionLoading(true);
+    setError(null);
+    const originalNotifications = [...notifications];
+
+    // Optimistic UI update
+    setNotifications(prev => prev.filter(n => n.id !== notificationToDelete.id));
+
+    try {
+      await deleteDoc(doc(db, "notifications", notificationToDelete.id));
+      handleCloseDeleteDialog();
+    } catch (err) {
+      console.error("Error deleting notification:", err);
+      setError("Failed to delete notification. Please try again.");
+      setNotifications(originalNotifications); // Revert on failure
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
   if (isLoadingGlobal) return null;
 
   return (
     <Box sx={{ width: '100%', maxWidth: 800, margin: 'auto', padding: 3 }}>
-      {error && !isLoadingGlobal && notifications.length === 0 && ( // Show error if loading failed and no data
-        <Box sx={{ display: 'flex', justifyContent: 'center', my: 4, color: 'red' }}>
-          <Typography>{error}</Typography>
-        </Box>
-      )}
-      {!isLoadingGlobal && ( // Render content if not globally loading
-        <>
-          <Typography variant="h4" component="h1" gutterBottom>
-            Notifications
-          </Typography>
+      <Typography variant="h4" component="h1" gutterBottom>
+        Notifications
+      </Typography>
 
-          {notifications.length === 0 ? (
-            <Typography variant="body1" sx={{ mt: 2 }}>
-              You have no new notifications.
-            </Typography>
-          ) : (
-            <Stack spacing={2} divider={<Divider flexItem />}>
-              {notifications.map((notification) => (
-                <Paper
-                  key={notification.id}
-                  elevation={notification.read ? 1 : 3}
-                  sx={{
-                    padding: 2,
-                    opacity: notification.read ? 0.7 : 1,
-                    transition: 'opacity 0.3s ease, box-shadow 0.3s ease',
-                  }}
-                >
-                  <Typography variant="subtitle2" color="text.secondary">
-                    From: {notification.sender} - {new Date(notification.timestamp).toLocaleString()}
-                  </Typography>
-                  <Typography variant="body1" sx={{ my: 1 }}>
-                    {notification.message}
-                  </Typography>
-                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 1 }}>
-                    {notification.type === 'grade_update' && (
-                      <Link to="/grades" style={{ textDecoration: 'none' }}>
-                        <Button variant="contained" size="small" color="primary">
-                          View Grades
-                        </Button>
-                      </Link>
-                    )}
-                    <Button
-                      variant="outlined"
-                      size="small"
-                      color="secondary"
-                      onClick={() => handleReplyClick(notification)}
-                    >
-                      Reply
+      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+
+      {notifications.length === 0 && !isLoadingGlobal ? (
+        <Typography variant="body1" sx={{ mt: 2 }}>
+          You have no notifications.
+        </Typography>
+      ) : (
+        <Stack spacing={2} divider={<Divider flexItem />}>
+          {notifications.map((notification) => (
+            <Paper
+              key={notification.id}
+              elevation={notification.read ? 1 : 3}
+              sx={{
+                padding: 2,
+                backgroundColor: notification.read ? 'grey.100' : 'background.paper',
+                opacity: notification.read ? 0.8 : 1,
+                transition: 'opacity 0.3s ease, box-shadow 0.3s ease, background-color 0.3s ease',
+              }}
+            >
+              <Typography variant="subtitle2" color="text.secondary">
+                From: {notification.sender} - {new Date(notification.timestamp).toLocaleString()}
+              </Typography>
+              <Typography variant="body1" sx={{ my: 1 }}>
+                {notification.message}
+              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', mt: 1 }}>
+                {notification.type === 'grade_update' && notification.gradeId && (
+                  <Link to={`/grades?highlight=${notification.gradeId}`} style={{ textDecoration: 'none' }}>
+                    <Button variant="contained" size="small" color="primary">
+                      View Grade
                     </Button>
-                    {!notification.read && (
-                        <Button
-                            variant="outlined"
-                            size="small"
-                            onClick={() => handleMarkAsRead(notification.id)}
-                        >
-                            Mark as Read
-                        </Button>
-                    )}
-                  </Box>
-                </Paper>
-              ))}
-            </Stack>
-          )}
-        </>
+                  </Link>
+                )}
+                <Button
+                  variant="outlined"
+                  size="small"
+                  color="secondary"
+                  onClick={() => handleReplyClick(notification)}
+                >
+                  Reply
+                </Button>
+                {!notification.read && (
+                    <Button
+                        variant="outlined"
+                        size="small"
+                        onClick={() => handleMarkAsRead(notification.id)}
+                    >
+                        Mark as Read
+                    </Button>
+                )}
+                <IconButton
+                  aria-label="delete"
+                  color="error"
+                  sx={{ marginLeft: 'auto' }}
+                  onClick={() => handleOpenDeleteDialog(notification)}
+                >
+                  <DeleteIcon />
+                </IconButton>
+              </Box>
+            </Paper>
+          ))}
+        </Stack>
       )}
 
-      {/* --- Reply Dialog --- */}
       <Dialog open={isReplyDialogOpen} onClose={handleCloseReplyDialog} fullWidth maxWidth="sm">
         <DialogTitle>Reply to {replyingToNotification?.sender || 'Sender'}</DialogTitle>
         <DialogContent>
           <DialogContentText sx={{ mb: 2 }}>
             Original message: "{replyingToNotification?.message}"
           </DialogContentText>
+          {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
           <TextField
             autoFocus
             margin="dense"
@@ -186,15 +235,34 @@ export default function NotificationsList() {
             rows={4}
             value={replyMessage}
             onChange={(e) => setReplyMessage(e.target.value)}
+            disabled={isActionLoading}
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleCloseReplyDialog} color="primary">Cancel</Button>
-          <Button onClick={handleSendReply} color="primary" variant="contained">Send Reply</Button>
+          <Button onClick={handleCloseReplyDialog} disabled={isActionLoading}>Cancel</Button>
+          <Button onClick={handleSendReply} color="primary" variant="contained" disabled={isActionLoading}>
+            {isActionLoading ? <CircularProgress size={24} /> : "Send Reply"}
+          </Button>
         </DialogActions>
       </Dialog>
-      {/* --- End Reply Dialog --- */}
 
+      <Dialog open={isDeleteDialogOpen} onClose={handleCloseDeleteDialog}>
+        <DialogTitle>Confirm Deletion</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Are you sure you want to delete this notification? This action cannot be undone.
+            <Typography variant="body2" sx={{ mt: 2, fontStyle: 'italic', color: 'text.secondary' }}>
+              "{notificationToDelete?.message}"
+            </Typography>
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseDeleteDialog} disabled={isActionLoading}>Cancel</Button>
+          <Button onClick={handleDeleteNotification} color="error" autoFocus disabled={isActionLoading}>
+            {isActionLoading ? <CircularProgress size={24} /> : "Delete"}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }
